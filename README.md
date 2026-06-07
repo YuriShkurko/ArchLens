@@ -2,9 +2,7 @@
 
 **See how every code change affects your architecture.**
 
-ArchLens is a local-first developer CLI that turns git changes into architecture-impact reports.
-
-ArchLens is **not** a commit-summary generator, PR-description generator, AI code reviewer, bug finder, SaaS dashboard, or chatbot.
+ArchLens is a local-first TypeScript/pnpm CLI that turns git changes into architecture-impact reports. It scans TypeScript/JavaScript files, records file-level architecture snapshots, compares git refs, and renders a Markdown report with detected structural facts, dependency-edge changes, deterministic risk signals, related tests, and a suggested review order.
 
 Good commit messages explain what changed. ArchLens explains how the system structure changed.
 
@@ -12,49 +10,77 @@ Good commit messages explain what changed. ArchLens explains how the system stru
 git change → architecture snapshot → architecture diff → risk/impact report
 ```
 
-## v0.1 scope
+ArchLens is **not** a commit-summary generator, PR-description generator, AI code reviewer, bug finder, SaaS dashboard, GitHub App, database-backed service, or chatbot.
 
-- TypeScript/JavaScript files first.
-- File/module nodes.
-- Static import/export and simple `require()` / string-literal dynamic import edges.
-- Local `.archlens/` JSON and Markdown outputs.
-- Deterministic risk signals; no AI inference.
+## Quickstart
 
-## Commands
+Clone and install:
 
 ```bash
+git clone https://github.com/YuriShkurko/ArchLens.git
+cd ArchLens
 pnpm install
-pnpm build
-
-archlens snapshot
-archlens diff --base main --head HEAD
-archlens render
 ```
 
-During local development, use:
+Build the workspace:
+
+```bash
+pnpm build
+```
+
+Create a snapshot of the current working tree:
 
 ```bash
 pnpm archlens snapshot
+```
+
+Compare two git refs:
+
+```bash
 pnpm archlens diff --base main --head HEAD
+```
+
+Render the Markdown report:
+
+```bash
 pnpm archlens render
 ```
 
-## Outputs
+Outputs are written locally under `.archlens/`:
 
 - `.archlens/snapshot.json` — architecture snapshot of the current repo.
 - `.archlens/architecture-diff.json` — structural diff between git refs.
 - `.archlens/architecture-impact.md` — reviewer-facing architecture-impact report.
 
-## Report positioning
+If using the built CLI binary directly inside this workspace, run `apps/cli/dist/index.js` after `pnpm build`. The CLI package also exposes a `bin` named `archlens`; publishing is intentionally out of scope for v0.1.
+
+## What ArchLens reports
 
 The Markdown report clearly separates:
 
 - detected structural facts;
 - inferred risk signals;
+- changed test files;
+- potential related existing tests;
+- suggested review order;
 - author-provided context;
 - unknowns.
 
-ArchLens does not invent author intent and does not write generic PR summaries. It helps reviewers see structural impact, dependency changes, risk areas, related tests, and a suggested review order.
+ArchLens does not invent author intent and does not write generic PR summaries. It helps reviewers see structural impact, dependency changes, risk areas, related tests, and a deterministic review path.
+
+## Git diff vs ArchLens
+
+`git diff` shows line-level and file-level changes. That is still the source of truth for exact code edits.
+
+ArchLens looks at the same change from a structural review angle:
+
+- which modules/files were added, removed, or changed;
+- which dependency edges were added or removed;
+- which deterministic risk signals were triggered;
+- which existing tests may be related;
+- which files should be reviewed first.
+
+Use ArchLens alongside `git diff`, not instead of it.
 
 ## Dogfood example
 
@@ -62,15 +88,38 @@ A realistic v0.1 dogfood case is a change that adds GitHub Actions CI in `.githu
 
 A commit message might say: `Add CI workflow`.
 
-ArchLens should report different information:
+ArchLens reports different information:
 
-- detected fact: `.github/workflows/ci.yml` was added;
-- detected fact: no TypeScript/JavaScript dependency edges changed;
-- inferred risk: workflow/config changes may affect validation or release behavior;
-- suggested review order: inspect the workflow file first;
-- unknown: whether GitHub Actions has passed yet.
+```markdown
+## Detected facts
 
-See `examples/ci-dogfood-architecture-impact.md` for the full example. Good commit messages explain what changed. ArchLens explains how the system structure changed.
+### Added files or modules
+
+- `.github/workflows/ci.yml (workflow, yaml — operations-sensitive, workflow)`
+
+### Added dependency edges
+
+- None detected.
+
+## Inferred risk signals
+
+- **WARNING — Workflow/config/deployment file changed** (operations)
+  - Workflow/config files changed. This may affect CI, validation, build, runtime, or release behavior. Verify the relevant workflow or command has run successfully before merge.
+
+## Suggested review order
+
+- `.github/workflows/ci.yml`
+```
+
+See `examples/ci-dogfood-architecture-impact.md` for the full example.
+
+## Current limitations
+
+- TypeScript/JavaScript only.
+- TypeScript path aliases and non-relative imports may be unresolved.
+- Dynamic imports are only detected when the specifier is a string literal.
+- Risk signals are deterministic heuristics, not proof of bugs.
+- No AI inference.
 
 ## Development
 
@@ -79,6 +128,17 @@ pnpm typecheck
 pnpm build
 pnpm test
 ```
+
+Root package scripts are intentionally small:
+
+- `pnpm typecheck`
+- `pnpm build`
+- `pnpm test`
+- `pnpm archlens -- <command>` / `pnpm archlens snapshot`
+
+## Roadmap
+
+See `docs/roadmap.md`.
 
 ## Inspiration and licensing
 
