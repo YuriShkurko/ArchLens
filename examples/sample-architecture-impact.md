@@ -16,7 +16,7 @@
 
 ### Added files or modules
 
-- `src/core/report.ts`
+- `src/core/report.ts (source, typescript)`
 
 ### Added dependency edges
 
@@ -24,8 +24,25 @@
 
 ## Inferred risk signals
 
-- **WARNING — Source changed without a detected test change**
-  - ArchLens detected source/module changes but no test file changes in the compared snapshots.
+- **WARNING — Source changed without a changed test file**
+  - Source files changed, but ArchLens did not detect changed test files in this diff. Check the potential related tests section and verify coverage manually if behavior changed.
+
+## Tests
+
+### Changed test files
+
+- None detected.
+
+### Potential related existing tests
+
+- `src/core/report.test.ts`
+
+## Suggested review order
+
+Risk-first, deterministic order: high-risk paths, config/workflow/deployment files, dependency-edge participants, changed source, tests, then docs.
+
+- `src/cli/index.ts`
+- `src/core/report.ts`
 
 ## Mermaid dependency diagram
 

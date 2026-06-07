@@ -59,6 +59,8 @@ export const ArchitectureDiffSchema = z.object({
   removedEdges: z.array(ArchitectureEdgeSchema),
   riskSignals: z.array(RiskSignalSchema),
   reviewOrder: z.array(z.string()),
+  changedTestFiles: z.array(z.string()),
+  potentialRelatedTests: z.array(z.string()),
   stats: z.object({
     addedNodeCount: z.number(),
     removedNodeCount: z.number(),

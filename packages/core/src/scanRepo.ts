@@ -57,11 +57,11 @@ function nodeForFile(repoRoot: string, fullPath: string): ArchitectureNode {
 
 function classifyPath(relPath: string, name: string): ArchitectureNodeKind {
   const lower = relPath.toLowerCase();
-  if (lower.includes("/.github/workflows/") || lower.startsWith(".github/workflows/") || lower.endsWith(".yml") || lower.endsWith(".yaml")) {
+  if (lower.includes("/.github/workflows/") || lower.startsWith(".github/workflows/")) {
     return "workflow";
   }
   if (lower.endsWith(".md") || lower.startsWith("docs/")) return "docs";
-  if (CONFIG_NAMES.has(name) || lower.includes("config") || lower.endsWith(".json") || lower.endsWith("dockerfile")) return "config";
+  if (CONFIG_NAMES.has(name) || lower.includes("config") || lower.endsWith(".json") || lower.endsWith(".yml") || lower.endsWith(".yaml") || lower.endsWith("dockerfile")) return "config";
   if (/(__tests__|\.test\.|\.spec\.|\/tests?\/)/i.test(relPath)) return "test";
   if (isScannableSource(relPath)) return "source";
   return "unknown";

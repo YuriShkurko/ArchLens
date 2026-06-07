@@ -56,6 +56,22 @@ The Markdown report clearly separates:
 
 ArchLens does not invent author intent and does not write generic PR summaries. It helps reviewers see structural impact, dependency changes, risk areas, related tests, and a suggested review order.
 
+## Dogfood example
+
+A realistic v0.1 dogfood case is a change that adds GitHub Actions CI in `.github/workflows/ci.yml`.
+
+A commit message might say: `Add CI workflow`.
+
+ArchLens should report different information:
+
+- detected fact: `.github/workflows/ci.yml` was added;
+- detected fact: no TypeScript/JavaScript dependency edges changed;
+- inferred risk: workflow/config changes may affect validation or release behavior;
+- suggested review order: inspect the workflow file first;
+- unknown: whether GitHub Actions has passed yet.
+
+See `examples/ci-dogfood-architecture-impact.md` for the full example. Good commit messages explain what changed. ArchLens explains how the system structure changed.
+
 ## Development
 
 ```bash

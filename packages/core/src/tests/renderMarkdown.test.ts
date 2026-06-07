@@ -16,6 +16,8 @@ describe("renderMarkdown", () => {
       removedEdges: [],
       riskSignals: [{ id: "r1", title: "Risk", level: "warning", kind: "dependency-boundary", paths: ["src/a.ts"], detail: "detail" }],
       reviewOrder: ["src/a.ts", "src/b.ts"],
+      changedTestFiles: [],
+      potentialRelatedTests: ["src/b.test.ts"],
       stats: { addedNodeCount: 1, removedNodeCount: 0, changedNodeCount: 0, addedEdgeCount: 1, removedEdgeCount: 0 },
     };
     const md = renderMarkdown(diff, { authorNote: "Author says this is extraction work." });
@@ -23,6 +25,8 @@ describe("renderMarkdown", () => {
     expect(md).toContain("## Inferred risk signals");
     expect(md).toContain("## Author-provided context");
     expect(md).toContain("## Unknowns");
+    expect(md).toContain("### Changed test files");
+    expect(md).toContain("### Potential related existing tests");
     expect(md).toContain("```mermaid");
     expect(md).toContain("Author says this is extraction work.");
   });

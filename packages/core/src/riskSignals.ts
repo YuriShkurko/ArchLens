@@ -6,6 +6,7 @@ interface RiskInput {
   changedNodes: ArchitectureNode[];
   addedEdges: ArchitectureEdge[];
   removedEdges: ArchitectureEdge[];
+  baseSnapshot: ArchitectureSnapshot;
   headSnapshot: ArchitectureSnapshot;
 }
 
@@ -18,11 +19,11 @@ export function detectRiskSignals(input: RiskInput): RiskSignal[] {
   if (sourceChanged.length > 0 && !testsChanged) {
     signals.push({
       id: "source-without-related-test-change",
-      title: "Source changed without a detected test change",
+      title: "Source changed without a changed test file",
       level: "warning",
       kind: "test-coverage-proxy",
       paths: sourceChanged.map((node) => node.path),
-      detail: "ArchLens detected source/module changes but no test file changes in the compared snapshots.",
+      detail: "Source files changed, but ArchLens did not detect changed test files in this diff. Check the potential related tests section and verify coverage manually if behavior changed.",
     });
   }
 
@@ -30,11 +31,11 @@ export function detectRiskSignals(input: RiskInput): RiskSignal[] {
   if (configTouched.length > 0) {
     signals.push({
       id: "config-or-workflow-changed",
-      title: "Config, workflow, or operations-sensitive file changed",
+      title: "Workflow/config/deployment file changed",
       level: "warning",
       kind: "operations",
       paths: configTouched.map((node) => node.path),
-      detail: "Configuration and workflow changes can alter build, runtime, deployment, or review behavior.",
+      detail: "Workflow/config files changed. This may affect CI, validation, build, runtime, or release behavior. Verify the relevant workflow or command has run successfully before merge.",
     });
   }
 
@@ -42,11 +43,22 @@ export function detectRiskSignals(input: RiskInput): RiskSignal[] {
   if (securityTouched.length > 0) {
     signals.push({
       id: "security-sensitive-path-touched",
-      title: "Security-sensitive path touched",
+      title: "Security-sensitive path changed",
       level: "high",
       kind: "security-boundary",
       paths: securityTouched.map((node) => node.path),
-      detail: "One or more changed paths mention auth, security, sessions, JWTs, tokens, permissions, or credentials.",
+      detail: "Changed paths mention auth, security, sessions, JWTs, tokens, permissions, or credentials. Review data flow, access checks, and tests around this boundary before merge.",
+    });
+  }
+
+  if (input.addedEdges.length > 0) {
+    signals.push({
+      id: "dependency-edges-added",
+      title: "New dependency edge added",
+      level: "info",
+      kind: "dependency-graph",
+      paths: input.addedEdges.flatMap((edge) => [edge.from, edge.to]),
+      detail: "One or more files now import modules they did not import before. Review whether the new dependency direction matches the intended architecture.",
     });
   }
 
@@ -58,7 +70,7 @@ export function detectRiskSignals(input: RiskInput): RiskSignal[] {
       level: "warning",
       kind: "dependency-boundary",
       paths: crossBoundary.flatMap((edge) => [edge.from, edge.to]),
-      detail: "A new import crosses top-level folders, which may indicate coupling between architecture areas.",
+      detail: "A new import crosses top-level folders. Confirm the dependency direction is intentional and does not couple separate architecture areas unexpectedly.",
     });
   }
 
@@ -82,11 +94,11 @@ export function detectRiskSignals(input: RiskInput): RiskSignal[] {
       level: "warning",
       kind: "change-size",
       paths: touched.map((node) => node.path),
-      detail: `Detected ${touched.length} changed files/modules and ${input.addedEdges.length + input.removedEdges.length} dependency edge changes.`,
+      detail: `Detected ${touched.length} changed files/modules and ${input.addedEdges.length + input.removedEdges.length} dependency edge changes. Consider reviewing by risk area rather than reading alphabetically.`,
     });
   }
 
-  const centralRemoved = input.removedNodes.filter((node) => fanIn(node.id, input.headSnapshot.edges) >= 3 || node.riskTags.includes("entrypoint"));
+  const centralRemoved = input.removedNodes.filter((node) => fanIn(node.id, input.baseSnapshot.edges) >= 3 || node.riskTags.includes("entrypoint"));
   if (centralRemoved.length > 0) {
     signals.push({
       id: "central-file-removed",
@@ -94,7 +106,7 @@ export function detectRiskSignals(input: RiskInput): RiskSignal[] {
       level: "high",
       kind: "centrality",
       paths: centralRemoved.map((node) => node.path),
-      detail: "A removed file looked central by entrypoint naming or dependency fan-in.",
+      detail: "A removed file looked central by entrypoint naming or dependency fan-in in the base snapshot. Confirm imports, entrypoints, and replacement paths are intentional.",
     });
   }
 
