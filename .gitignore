@@ -3,3 +3,5 @@ dist/
 .archlens/
 coverage/
 .DS_Store
+
+*.tsbuildinfo
