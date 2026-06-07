@@ -1,0 +1,19 @@
+{
+  "name": "archlens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first architecture-impact reports for git changes.",
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm --filter @archlens/core typecheck && pnpm --filter @archlens/core build && pnpm --filter @archlens/cli typecheck",
+    "test": "pnpm -r test",
+    "archlens": "pnpm --filter @archlens/cli start --"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "typescript": "^5.8.3",
+    "vitest": "^2.1.9"
+  }
+}
