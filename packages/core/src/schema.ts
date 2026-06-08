@@ -21,10 +21,20 @@ export const ArchitectureEdgeSchema = z.object({
 });
 export type ArchitectureEdge = z.infer<typeof ArchitectureEdgeSchema>;
 
+export const AnalyzerMetadataSchema = z.object({
+  name: z.string(),
+  languages: z.array(z.string()),
+  fileExtensions: z.array(z.string()),
+  capabilities: z.array(z.string()),
+  limitations: z.array(z.string()),
+});
+export type AnalyzerMetadata = z.infer<typeof AnalyzerMetadataSchema>;
+
 export const ArchitectureSnapshotSchema = z.object({
   version: z.string(),
   createdAt: z.string(),
   repoRoot: z.string(),
+  analyzers: z.array(AnalyzerMetadataSchema),
   nodes: z.array(ArchitectureNodeSchema),
   edges: z.array(ArchitectureEdgeSchema),
   stats: z.object({
@@ -57,6 +67,7 @@ export const ArchitectureDiffSchema = z.object({
   changedNodes: z.array(ArchitectureNodeSchema),
   addedEdges: z.array(ArchitectureEdgeSchema),
   removedEdges: z.array(ArchitectureEdgeSchema),
+  analyzers: z.array(AnalyzerMetadataSchema),
   riskSignals: z.array(RiskSignalSchema),
   reviewOrder: z.array(z.string()),
   changedTestFiles: z.array(z.string()),

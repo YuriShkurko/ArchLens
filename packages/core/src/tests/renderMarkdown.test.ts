@@ -11,22 +11,36 @@ describe("renderMarkdown", () => {
       head: "head",
       addedNodes: [{ id: "src/b.ts", path: "src/b.ts", kind: "source", language: "typescript", riskTags: [], contentHash: "b" }],
       removedNodes: [],
-      changedNodes: [],
+      changedNodes: [{ id: "backend/app.py", path: "backend/app.py", kind: "source", language: "python", riskTags: [], contentHash: "py" }],
       addedEdges: [{ from: "src/a.ts", to: "src/b.ts", kind: "import", sourcePath: "src/a.ts" }],
       removedEdges: [],
+      analyzers: [{
+        name: "typescript-javascript",
+        languages: ["typescript", "javascript"],
+        fileExtensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+        capabilities: ["static-imports", "exports", "require-string-literals", "dynamic-import-string-literals", "relative-import-resolution", "test-path-heuristics"],
+        limitations: ["tsconfig-path-aliases-not-fully-resolved", "dynamic-expressions-not-resolved", "no-symbol-call-graph"],
+      }],
       riskSignals: [{ id: "r1", title: "Risk", level: "warning", kind: "dependency-boundary", paths: ["src/a.ts"], detail: "detail" }],
       reviewOrder: ["src/a.ts", "src/b.ts"],
       changedTestFiles: [],
-      potentialRelatedTests: ["src/b.test.ts"],
+      potentialRelatedTests: [],
       stats: { addedNodeCount: 1, removedNodeCount: 0, changedNodeCount: 0, addedEdgeCount: 1, removedEdgeCount: 0 },
     };
     const md = renderMarkdown(diff, { authorNote: "Author says this is extraction work." });
+    expect(md).toContain("## Architecture story");
     expect(md).toContain("## Detected facts");
     expect(md).toContain("## Inferred risk signals");
     expect(md).toContain("## Author-provided context");
-    expect(md).toContain("## Unknowns");
+    expect(md).toContain("## Appendix: limitations and caveats");
     expect(md).toContain("### Changed test files");
     expect(md).toContain("### Potential related existing tests");
+    expect(md).toContain("No related existing tests found by TypeScript/JavaScript path heuristics.");
+    expect(md).toContain("### Unsupported related-test inference");
+    expect(md).toContain("Unsupported language areas are listed as scope limitations, not as no-risk areas.");
+    expect(md).toContain("ArchLens analyzed TypeScript/JavaScript architecture facts in this repository.");
+    expect(md).toContain("Python files changed, but Python dependency analysis is not supported in this version.");
+    expect(md).toContain("backend/app.py");
     expect(md).toContain("```mermaid");
     expect(md).toContain("Author says this is extraction work.");
   });

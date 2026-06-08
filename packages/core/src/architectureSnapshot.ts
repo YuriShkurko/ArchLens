@@ -1,6 +1,6 @@
 import path from "node:path";
 import { scanImports } from "./importScanner.js";
-import { isScannableSource, scanRepoFiles } from "./scanRepo.js";
+import { isScannableSource, scanRepoFiles, TYPESCRIPT_JAVASCRIPT_ANALYZER } from "./scanRepo.js";
 import { ARCHLENS_VERSION, ArchitectureSnapshotSchema, type ArchitectureEdge, type ArchitectureSnapshot } from "./schema.js";
 
 export function createArchitectureSnapshot(repoRoot: string, now = new Date()): ArchitectureSnapshot {
@@ -32,6 +32,7 @@ export function createArchitectureSnapshot(repoRoot: string, now = new Date()): 
     version: ARCHLENS_VERSION,
     createdAt: now.toISOString(),
     repoRoot: root,
+    analyzers: [TYPESCRIPT_JAVASCRIPT_ANALYZER],
     nodes,
     edges: dedupeEdges(edges),
     stats: {

@@ -24,7 +24,7 @@ export function diffArchitectureSnapshots(baseSnapshot: ArchitectureSnapshot, he
     .sort();
   const potentialRelatedTests = findPotentialRelatedTests([...addedNodes, ...changedNodes], headSnapshot.nodes);
   const riskSignals = detectRiskSignals({ addedNodes, removedNodes, changedNodes, addedEdges, removedEdges, baseSnapshot, headSnapshot });
-  const reviewOrder = buildReviewOrder({ addedNodes, removedNodes, changedNodes, addedEdges, removedEdges, riskSignals });
+  const reviewOrder = buildReviewOrder({ addedNodes, removedNodes, changedNodes, addedEdges, removedEdges, riskSignals, baseSnapshot, headSnapshot });
 
   const diff: ArchitectureDiff = {
     version: ARCHLENS_VERSION,
@@ -36,6 +36,7 @@ export function diffArchitectureSnapshots(baseSnapshot: ArchitectureSnapshot, he
     changedNodes,
     addedEdges,
     removedEdges,
+    analyzers: headSnapshot.analyzers,
     riskSignals,
     reviewOrder,
     changedTestFiles,
@@ -59,30 +60,58 @@ interface ReviewOrderInput {
   addedEdges: ArchitectureEdge[];
   removedEdges: ArchitectureEdge[];
   riskSignals: RiskSignal[];
+  baseSnapshot: ArchitectureSnapshot;
+  headSnapshot: ArchitectureSnapshot;
 }
 
 function buildReviewOrder(input: ReviewOrderInput): string[] {
   const touched = [...input.addedNodes, ...input.changedNodes, ...input.removedNodes];
-  const byPath = new Map(touched.map((node) => [node.path, node]));
+  const touchedPaths = new Set(touched.map((node) => node.path));
+  const nodesByPath = new Map([...input.baseSnapshot.nodes, ...input.headSnapshot.nodes].map((node) => [node.path, node]));
   const ordered = new Set<string>();
 
+  const highRiskPaths = new Set<string>();
   for (const signal of [...input.riskSignals].sort(compareRiskSignal)) {
-    for (const p of signal.paths.sort()) ordered.add(p);
+    if (signal.level === "high" || signal.kind === "operations" || signal.kind === "security-boundary") {
+      for (const p of signal.paths.sort()) highRiskPaths.add(p);
+    }
   }
-
+  for (const node of [...highRiskPaths].map((p) => nodesByPath.get(p)).filter(isNode).sort(compareNodePath)) ordered.add(node.path);
   for (const node of touched.filter(isConfigWorkflowOrDeploy).sort(compareNodePath)) ordered.add(node.path);
 
-  const dependencyPaths = new Set<string>();
+  const edgePaths = new Set<string>();
   for (const edge of [...input.addedEdges, ...input.removedEdges].sort(compareEdge)) {
-    dependencyPaths.add(edge.from);
-    dependencyPaths.add(edge.to);
+    edgePaths.add(edge.from);
+    edgePaths.add(edge.to);
   }
-  for (const p of [...dependencyPaths].sort()) ordered.add(p);
 
-  for (const node of touched.filter((node) => node.kind === "source").sort(compareNodePath)) ordered.add(node.path);
+  const centralityScores = buildCentralityScores(input.headSnapshot.edges, input.baseSnapshot.edges);
+  const changedCentral = touched
+    .filter((node) => node.kind !== "docs" && node.kind !== "test")
+    .filter((node) => (centralityScores.get(node.path) ?? 0) >= 5)
+    .sort(compareByCentralityThenPath(centralityScores));
+  for (const node of changedCentral) ordered.add(node.path);
+
+  const changedOrAddedSources = new Set([...input.addedNodes, ...input.changedNodes].filter((node) => node.kind === "source").map((node) => node.path));
+  const importedByTouched = new Map<string, Set<string>>();
+  for (const edge of input.headSnapshot.edges) {
+    if (!changedOrAddedSources.has(edge.from)) continue;
+    if (!edgePaths.has(edge.to) && touchedPaths.has(edge.to)) continue;
+    const importers = importedByTouched.get(edge.to) ?? new Set<string>();
+    importers.add(edge.from);
+    importedByTouched.set(edge.to, importers);
+  }
+  const sharedDependencies = [...importedByTouched.entries()]
+    .filter(([, importers]) => importers.size >= 2)
+    .map(([path]) => path)
+    .sort((a, b) => (importedByTouched.get(b)?.size ?? 0) - (importedByTouched.get(a)?.size ?? 0) || a.localeCompare(b));
+  for (const p of sharedDependencies) ordered.add(p);
+
+  for (const p of [...edgePaths].sort((a, b) => (centralityScores.get(b) ?? 0) - (centralityScores.get(a) ?? 0) || a.localeCompare(b))) ordered.add(p);
+  for (const node of touched.filter((node) => node.kind === "source").sort(compareByCentralityThenPath(centralityScores))) ordered.add(node.path);
   for (const node of touched.filter((node) => node.kind === "test").sort(compareNodePath)) ordered.add(node.path);
   for (const node of touched.filter((node) => node.kind === "docs").sort(compareNodePath)) ordered.add(node.path);
-  for (const node of touched.filter((node) => !byPath.has(node.path) || !["source", "test", "docs"].includes(node.kind)).sort(compareNodePath)) ordered.add(node.path);
+  for (const node of touched.filter((node) => !["source", "test", "docs"].includes(node.kind)).sort(compareNodePath)) ordered.add(node.path);
 
   return [...ordered].filter(Boolean).slice(0, 30);
 }
@@ -115,6 +144,23 @@ function relatedTestCandidates(sourcePath: string): string[] {
 
 function isConfigWorkflowOrDeploy(node: ArchitectureNode): boolean {
   return node.kind === "config" || node.kind === "workflow" || node.riskTags.includes("operations-sensitive");
+}
+
+function buildCentralityScores(headEdges: ArchitectureEdge[], baseEdges: ArchitectureEdge[]): Map<string, number> {
+  const scores = new Map<string, number>();
+  for (const edge of [...headEdges, ...baseEdges]) {
+    scores.set(edge.from, (scores.get(edge.from) ?? 0) + 1);
+    scores.set(edge.to, (scores.get(edge.to) ?? 0) + 1);
+  }
+  return scores;
+}
+
+function compareByCentralityThenPath(scores: Map<string, number>): (a: ArchitectureNode, b: ArchitectureNode) => number {
+  return (a, b) => (scores.get(b.path) ?? 0) - (scores.get(a.path) ?? 0) || a.path.localeCompare(b.path);
+}
+
+function isNode(value: ArchitectureNode | undefined): value is ArchitectureNode {
+  return value !== undefined;
 }
 
 function compareRiskSignal(a: RiskSignal, b: RiskSignal): number {

@@ -2,7 +2,7 @@
 
 **See how every code change affects your architecture.**
 
-ArchLens is a local-first TypeScript/pnpm CLI that turns git changes into architecture-impact reports. It scans TypeScript/JavaScript files, records file-level architecture snapshots, compares git refs, and renders a Markdown report with detected structural facts, dependency-edge changes, deterministic risk signals, related tests, and a suggested review order.
+ArchLens is a local-first, language-agnostic architecture-impact tool for repositories. The current v0.1.x implementation ships with a TypeScript/JavaScript analyzer first, records file-level architecture snapshots, compares git refs, and renders a Markdown report with detected structural facts, dependency-edge changes, deterministic risk signals, related tests, unsupported language scope, and a suggested review order.
 
 Good commit messages explain what changed. ArchLens explains how the system structure changed.
 
@@ -58,13 +58,16 @@ If using the built CLI binary directly inside this workspace, run `apps/cli/dist
 
 The Markdown report clearly separates:
 
+- analyzer scope and unsupported language areas;
+- concise architecture story derived from dependency facts;
 - detected structural facts;
 - inferred risk signals;
 - changed test files;
 - potential related existing tests;
-- suggested review order;
+- unsupported related-test inference areas;
+- dependency-centrality-aware suggested review order;
 - author-provided context;
-- unknowns.
+- appendix limitations and caveats.
 
 ArchLens does not invent author intent and does not write generic PR summaries. It helps reviewers see structural impact, dependency changes, risk areas, related tests, and a deterministic review path.
 
@@ -115,7 +118,9 @@ See `examples/ci-dogfood-architecture-impact.md` for the full example.
 
 ## Current limitations
 
-- TypeScript/JavaScript only.
+- v0.1.x supports TypeScript/JavaScript dependency and related-test inference first; ArchLens is not intended to remain TypeScript-only.
+- Python support is planned next, but Python imports are not analyzed yet.
+- Common generated/local directories are ignored by default, including `.git/`, `.venv/`, `venv/`, `env/`, `node_modules/`, `dist/`, `build/`, `.next/`, `.turbo/`, `.cache/`, `coverage/`, `.pytest_cache/`, `__pycache__/`, and `.archlens/`.
 - TypeScript path aliases and non-relative imports may be unresolved.
 - Dynamic imports are only detected when the specifier is a string literal.
 - Risk signals are deterministic heuristics, not proof of bugs.
@@ -138,7 +143,7 @@ Root package scripts are intentionally small:
 
 ## Roadmap
 
-See `docs/roadmap.md`.
+See `docs/architecture.md`, `docs/language-support.md`, and `docs/roadmap.md`.
 
 ## Inspiration and licensing
 

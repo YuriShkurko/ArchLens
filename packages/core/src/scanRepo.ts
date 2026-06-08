@@ -1,10 +1,43 @@
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import type { ArchitectureNode, ArchitectureNodeKind } from "./schema.js";
+import type { AnalyzerMetadata, ArchitectureNode, ArchitectureNodeKind } from "./schema.js";
 
-const IGNORED_DIRS = new Set([".git", "node_modules", "dist", "build", "coverage", ".archlens", ".turbo", ".next"]);
+export const DEFAULT_IGNORED_DIRS = [
+  ".git",
+  ".venv",
+  "venv",
+  "env",
+  "node_modules",
+  "dist",
+  "build",
+  ".next",
+  ".turbo",
+  ".cache",
+  "coverage",
+  ".pytest_cache",
+  "__pycache__",
+  ".archlens",
+] as const;
+
+const IGNORED_DIRS = new Set<string>(DEFAULT_IGNORED_DIRS);
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
+const KNOWN_UNSUPPORTED_LANGUAGE_EXTENSIONS = new Set([".py", ".go", ".java", ".cs", ".rb", ".php"]);
+
+export const TYPESCRIPT_JAVASCRIPT_ANALYZER: AnalyzerMetadata = {
+  name: "typescript-javascript",
+  languages: ["typescript", "javascript"],
+  fileExtensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+  capabilities: [
+    "static-imports",
+    "exports",
+    "require-string-literals",
+    "dynamic-import-string-literals",
+    "relative-import-resolution",
+    "test-path-heuristics",
+  ],
+  limitations: ["tsconfig-path-aliases-not-fully-resolved", "dynamic-expressions-not-resolved", "no-symbol-call-graph"],
+};
 const CONFIG_NAMES = new Set([
   "package.json",
   "tsconfig.json",
@@ -26,6 +59,10 @@ export function isScannableSource(pathName: string): boolean {
   return SOURCE_EXTENSIONS.has(path.extname(pathName));
 }
 
+export function isKnownUnsupportedLanguagePath(pathName: string): boolean {
+  return KNOWN_UNSUPPORTED_LANGUAGE_EXTENSIONS.has(path.extname(pathName).toLowerCase());
+}
+
 function walk(repoRoot: string, dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -37,7 +74,7 @@ function walk(repoRoot: string, dir: string): string[] {
     if (!entry.isFile()) continue;
     const full = path.join(dir, entry.name);
     const kind = classifyPath(normalize(path.relative(repoRoot, full)), entry.name);
-    if (isScannableSource(full) || kind !== "unknown") out.push(full);
+    if (isScannableSource(full) || isKnownUnsupportedLanguagePath(full) || kind !== "unknown") out.push(full);
   }
   return out;
 }
@@ -63,7 +100,7 @@ function classifyPath(relPath: string, name: string): ArchitectureNodeKind {
   if (lower.endsWith(".md") || lower.startsWith("docs/")) return "docs";
   if (CONFIG_NAMES.has(name) || lower.includes("config") || lower.endsWith(".json") || lower.endsWith(".yml") || lower.endsWith(".yaml") || lower.endsWith("dockerfile")) return "config";
   if (/(__tests__|\.test\.|\.spec\.|\/tests?\/)/i.test(relPath)) return "test";
-  if (isScannableSource(relPath)) return "source";
+  if (isScannableSource(relPath) || isKnownUnsupportedLanguagePath(relPath)) return "source";
   return "unknown";
 }
 
@@ -72,6 +109,12 @@ function languageFor(filePath: string): string {
   if (ext === ".ts" || ext === ".tsx") return "typescript";
   if ([".js", ".jsx", ".mjs", ".cjs"].includes(ext)) return "javascript";
   if (ext === ".md") return "markdown";
+  if (ext === ".py") return "python";
+  if (ext === ".go") return "go";
+  if (ext === ".java") return "java";
+  if (ext === ".cs") return "csharp";
+  if (ext === ".rb") return "ruby";
+  if (ext === ".php") return "php";
   if ([".yml", ".yaml"].includes(ext)) return "yaml";
   if (ext === ".json") return "json";
   return "unknown";
@@ -83,7 +126,7 @@ function riskTagsFor(relPath: string, kind: ArchitectureNodeKind): string[] {
   if (kind === "config") tags.add("config");
   if (kind === "workflow") tags.add("workflow");
   if (/auth|security|session|jwt|token|permission|credential/.test(lower)) tags.add("security-sensitive");
-  if (/dockerfile|compose|\.github\/workflows|deploy|infra|migration/.test(lower)) tags.add("operations-sensitive");
+  if (/dockerfile|compose|\.github\/workflows|deploy|(^|\/)(infra|migrations?)(\/|$)/.test(lower)) tags.add("operations-sensitive");
   if (/index\.[tj]sx?$|main\.[tj]sx?$|app\.[tj]sx?$|cli\//.test(lower)) tags.add("entrypoint");
   return [...tags].sort();
 }

@@ -23,7 +23,7 @@ export function detectRiskSignals(input: RiskInput): RiskSignal[] {
       level: "warning",
       kind: "test-coverage-proxy",
       paths: sourceChanged.map((node) => node.path),
-      detail: "Source files changed, but ArchLens did not detect changed test files in this diff. Check the potential related tests section and verify coverage manually if behavior changed.",
+      detail: "Source files changed with no test files changed in the same diff. Verify the behavior directly or confirm that existing tests cover the touched modules before merge."
     });
   }
 
@@ -35,7 +35,7 @@ export function detectRiskSignals(input: RiskInput): RiskSignal[] {
       level: "warning",
       kind: "operations",
       paths: configTouched.map((node) => node.path),
-      detail: "Workflow/config files changed. This may affect CI, validation, build, runtime, or release behavior. Verify the relevant workflow or command has run successfully before merge.",
+      detail: "Configuration, package, workflow, or deployment files changed. Verify the affected build/test/runtime command because these files can change behavior without obvious source-code call sites."
     });
   }
 
@@ -58,7 +58,19 @@ export function detectRiskSignals(input: RiskInput): RiskSignal[] {
       level: "info",
       kind: "dependency-graph",
       paths: input.addedEdges.flatMap((edge) => [edge.from, edge.to]),
-      detail: "One or more files now import modules they did not import before. Review whether the new dependency direction matches the intended architecture.",
+      detail: "New imports can shift module boundaries or make shared dependencies more central. Review the importing files and any shared targets with multiple new importers.",
+    });
+  }
+
+  const unsupportedTouched = touched.filter((node) => isUnsupportedLanguagePath(node.path, node.language));
+  if (unsupportedTouched.length > 0) {
+    signals.push({
+      id: "unsupported-language-touched",
+      title: "Changed files include unsupported language areas",
+      level: "info",
+      kind: "unsupported-language",
+      paths: unsupportedTouched.map((node) => node.path),
+      detail: "ArchLens v0.1 extracts dependency and related-test signals for TypeScript/JavaScript only. Treat changed unsupported-language files as listed facts, then review their language-specific imports and tests manually.",
     });
   }
 
@@ -94,7 +106,7 @@ export function detectRiskSignals(input: RiskInput): RiskSignal[] {
       level: "warning",
       kind: "change-size",
       paths: touched.map((node) => node.path),
-      detail: `Detected ${touched.length} changed files/modules and ${input.addedEdges.length + input.removedEdges.length} dependency edge changes. Consider reviewing by risk area rather than reading alphabetically.`,
+      detail: `Detected ${touched.length} changed files/modules and ${input.addedEdges.length + input.removedEdges.length} dependency edge changes. Review by risk area and dependency hubs first so central files and configuration changes are checked before leaf modules.`
     });
   }
 
@@ -116,6 +128,11 @@ export function detectRiskSignals(input: RiskInput): RiskSignal[] {
 function topFolder(pathName: string): string {
   const parts = pathName.split("/");
   return parts.length > 1 ? parts[0] : ".";
+}
+
+function isUnsupportedLanguagePath(pathName: string, language: string): boolean {
+  if (language === "typescript" || language === "javascript") return false;
+  return /\.(py|rs|go|java|kt|rb|php|cs|swift|c|cc|cpp|h|hpp)$/i.test(pathName);
 }
 
 function fanIn(id: string, edges: ArchitectureEdge[]): number {
