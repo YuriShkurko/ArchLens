@@ -8,6 +8,8 @@ interface RiskInput {
   removedEdges: ArchitectureEdge[];
   baseSnapshot: ArchitectureSnapshot;
   headSnapshot: ArchitectureSnapshot;
+  changedTestFiles: string[];
+  potentialRelatedTests: string[];
 }
 
 export function detectRiskSignals(input: RiskInput): RiskSignal[] {
@@ -17,16 +19,29 @@ export function detectRiskSignals(input: RiskInput): RiskSignal[] {
   const sourceChanged = touched.filter((node) => node.kind === "source");
   const supportedLanguages = new Set(input.headSnapshot.analyzers.flatMap((analyzer) => analyzer.languages));
   const supportedSourceChanged = sourceChanged.filter((node) => supportedLanguages.has(node.language));
+  const tsJsSourceChanged = supportedSourceChanged.filter((node) => node.language === "typescript" || node.language === "javascript");
+  const pythonSourceChanged = supportedSourceChanged.filter((node) => node.language === "python");
   const unsupportedSourceChanged = sourceChanged.filter((node) => !supportedLanguages.has(node.language) && isUnsupportedLanguagePath(node.path, node.language));
 
-  if (supportedSourceChanged.length > 0 && !testsChanged) {
+  if (tsJsSourceChanged.length > 0 && !testsChanged) {
     signals.push({
       id: "supported-source-changed-without-tests",
-      title: "Supported source changed without a changed test file",
+      title: "Supported TypeScript/JavaScript source changed without a changed test file",
       level: "warning",
       kind: "test-coverage-proxy",
-      paths: supportedSourceChanged.map((node) => node.path),
+      paths: tsJsSourceChanged.map((node) => node.path),
       detail: "Analyzed TypeScript/JavaScript source changed with no test files changed in the same diff. Verify the behavior directly or confirm that existing tests cover the touched modules before merge."
+    });
+  }
+
+  if (pythonSourceChanged.length > 0 && !hasPythonTestEvidence(input.changedTestFiles, input.potentialRelatedTests)) {
+    signals.push({
+      id: "python-source-changed-without-related-tests",
+      title: "Python source changed without related tests detected",
+      level: "warning",
+      kind: "test-coverage-proxy",
+      paths: pythonSourceChanged.map((node) => node.path),
+      detail: "Python source files changed and no changed or potential related Python tests were detected by deterministic path heuristics. Verify the behavior directly or identify the relevant backend test coverage before merge."
     });
   }
 
@@ -133,8 +148,12 @@ function topFolder(pathName: string): string {
 }
 
 function isUnsupportedLanguagePath(pathName: string, language: string): boolean {
-  if (language === "typescript" || language === "javascript") return false;
-  return /\.(py|rs|go|java|kt|rb|php|cs|swift|c|cc|cpp|h|hpp)$/i.test(pathName);
+  if (language === "typescript" || language === "javascript" || language === "python") return false;
+  return /\.(rs|go|java|kt|rb|php|cs|swift|c|cc|cpp|h|hpp)$/i.test(pathName);
+}
+
+function hasPythonTestEvidence(changedTestFiles: string[], potentialRelatedTests: string[]): boolean {
+  return [...changedTestFiles, ...potentialRelatedTests].some((pathName) => pathName.endsWith(".py"));
 }
 
 function fanIn(id: string, edges: ArchitectureEdge[]): number {

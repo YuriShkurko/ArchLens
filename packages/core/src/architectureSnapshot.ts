@@ -1,18 +1,22 @@
 import path from "node:path";
+import { scanPythonImports } from "./analyzers/python/importScanner.js";
 import { scanImports } from "./importScanner.js";
-import { isScannableSource, scanRepoFiles, TYPESCRIPT_JAVASCRIPT_ANALYZER } from "./scanRepo.js";
+import { isScannableSource, scanRepoFiles, PYTHON_ANALYZER, TYPESCRIPT_JAVASCRIPT_ANALYZER } from "./scanRepo.js";
 import { ARCHLENS_VERSION, ArchitectureSnapshotSchema, type ArchitectureEdge, type ArchitectureSnapshot } from "./schema.js";
 
 export function createArchitectureSnapshot(repoRoot: string, now = new Date()): ArchitectureSnapshot {
   const root = path.resolve(repoRoot);
   const nodes = scanRepoFiles(root);
   const nodeIds = new Set(nodes.map((node) => node.id));
+  const pythonPaths = nodes.filter((node) => node.language === "python").map((node) => node.path);
   const edges: ArchitectureEdge[] = [];
   let externalImportCount = 0;
 
   for (const node of nodes) {
     if (!isScannableSource(node.path)) continue;
-    const imports = scanImports(path.join(root, node.path), root);
+    const imports = node.language === "python"
+      ? scanPythonImports(path.join(root, node.path), root, pythonPaths)
+      : scanImports(path.join(root, node.path), root);
     for (const record of imports) {
       if (!record.resolvedPath) {
         externalImportCount++;
@@ -32,7 +36,7 @@ export function createArchitectureSnapshot(repoRoot: string, now = new Date()): 
     version: ARCHLENS_VERSION,
     createdAt: now.toISOString(),
     repoRoot: root,
-    analyzers: [TYPESCRIPT_JAVASCRIPT_ANALYZER],
+    analyzers: [TYPESCRIPT_JAVASCRIPT_ANALYZER, PYTHON_ANALYZER],
     nodes,
     edges: dedupeEdges(edges),
     stats: {

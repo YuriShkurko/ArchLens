@@ -21,8 +21,8 @@ export const DEFAULT_IGNORED_DIRS = [
 ] as const;
 
 const IGNORED_DIRS = new Set<string>(DEFAULT_IGNORED_DIRS);
-const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
-const KNOWN_UNSUPPORTED_LANGUAGE_EXTENSIONS = new Set([".py", ".go", ".java", ".cs", ".rb", ".php"]);
+const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py"]);
+const KNOWN_UNSUPPORTED_LANGUAGE_EXTENSIONS = new Set([".go", ".java", ".cs", ".rb", ".php"]);
 
 export const TYPESCRIPT_JAVASCRIPT_ANALYZER: AnalyzerMetadata = {
   name: "typescript-javascript",
@@ -37,6 +37,21 @@ export const TYPESCRIPT_JAVASCRIPT_ANALYZER: AnalyzerMetadata = {
     "test-path-heuristics",
   ],
   limitations: ["tsconfig-path-aliases-not-fully-resolved", "dynamic-expressions-not-resolved", "no-symbol-call-graph"],
+};
+
+export const PYTHON_ANALYZER: AnalyzerMetadata = {
+  name: "python",
+  languages: ["python"],
+  fileExtensions: [".py"],
+  capabilities: ["static-imports", "from-imports", "relative-imports-basic", "local-module-resolution-basic", "test-path-heuristics"],
+  limitations: [
+    "dynamic-imports-not-resolved",
+    "runtime-imports-not-resolved",
+    "no-type-analysis",
+    "no-symbol-call-graph",
+    "namespace-package-resolution-limited",
+    "fastapi-route-analysis-not-implemented",
+  ],
 };
 const CONFIG_NAMES = new Set([
   "package.json",
@@ -99,7 +114,7 @@ function classifyPath(relPath: string, name: string): ArchitectureNodeKind {
   }
   if (lower.endsWith(".md") || lower.startsWith("docs/")) return "docs";
   if (CONFIG_NAMES.has(name) || lower.includes("config") || lower.endsWith(".json") || lower.endsWith(".yml") || lower.endsWith(".yaml") || lower.endsWith("dockerfile")) return "config";
-  if (/(__tests__|\.test\.|\.spec\.|\/tests?\/)/i.test(relPath)) return "test";
+  if (/(__tests__|\.test\.|\.spec\.|\/tests?\/|^tests?\/|(^|\/)test_[^/]+\.py$|(^|\/)[^/]+_test\.py$)/i.test(relPath)) return "test";
   if (isScannableSource(relPath) || isKnownUnsupportedLanguagePath(relPath)) return "source";
   return "unknown";
 }

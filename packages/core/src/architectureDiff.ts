@@ -23,7 +23,7 @@ export function diffArchitectureSnapshots(baseSnapshot: ArchitectureSnapshot, he
     .map((node) => node.path)
     .sort();
   const potentialRelatedTests = findPotentialRelatedTests([...addedNodes, ...changedNodes], headSnapshot.nodes);
-  const riskSignals = detectRiskSignals({ addedNodes, removedNodes, changedNodes, addedEdges, removedEdges, baseSnapshot, headSnapshot });
+  const riskSignals = detectRiskSignals({ addedNodes, removedNodes, changedNodes, addedEdges, removedEdges, baseSnapshot, headSnapshot, changedTestFiles, potentialRelatedTests });
   const reviewOrder = buildReviewOrder({ addedNodes, removedNodes, changedNodes, addedEdges, removedEdges, riskSignals, baseSnapshot, headSnapshot });
 
   const diff: ArchitectureDiff = {
@@ -117,21 +117,37 @@ function buildReviewOrder(input: ReviewOrderInput): string[] {
 }
 
 function findPotentialRelatedTests(changedNodes: ArchitectureNode[], allNodes: ArchitectureNode[]): string[] {
-  const testPaths = new Set(allNodes.filter((node) => node.kind === "test").map((node) => node.path));
+  const testNodes = allNodes.filter((node) => node.kind === "test");
+  const testPaths = new Set(testNodes.map((node) => node.path));
   const related = new Set<string>();
   for (const node of changedNodes.filter((n) => n.kind === "source")) {
-    for (const candidate of relatedTestCandidates(node.path)) {
+    for (const candidate of relatedTestCandidates(node.path, node.language)) {
       if (testPaths.has(candidate)) related.add(candidate);
+    }
+    for (const testNode of testNodes) {
+      if (isLikelyRelatedTest(node.path, node.language, testNode.path)) related.add(testNode.path);
     }
   }
   return [...related].sort();
 }
 
-function relatedTestCandidates(sourcePath: string): string[] {
+function relatedTestCandidates(sourcePath: string, language: string): string[] {
   const extless = sourcePath.replace(/\.[^.]+$/, "");
   const fileBase = extless.split("/").pop() ?? extless;
   const dir = extless.includes("/") ? extless.slice(0, extless.lastIndexOf("/")) : ".";
   const packageRoot = sourcePath.includes("/src/") ? sourcePath.slice(0, sourcePath.indexOf("/src/")) : dir.split("/")[0] ?? ".";
+  if (language === "python") {
+    const afterSrc = sourcePath.includes("/src/") ? sourcePath.slice(sourcePath.indexOf("/src/") + 5).replace(/\.[^.]+$/, "") : extless;
+    const packageRelative = afterSrc.split("/").slice(1).join("/");
+    return [
+      `${packageRoot}/tests/test_${fileBase}.py`,
+      `${packageRoot}/tests/${packageRelative ? packageRelative.slice(0, packageRelative.lastIndexOf("/")) + "/" : ""}test_${fileBase}.py`,
+      `${dir}/test_${fileBase}.py`,
+      `${dir}/tests/test_${fileBase}.py`,
+      `tests/test_${fileBase}.py`,
+      `tests/${packageRelative ? packageRelative.slice(0, packageRelative.lastIndexOf("/")) + "/" : ""}test_${fileBase}.py`,
+    ].filter((p) => p && !p.startsWith("./") && !p.includes("//"));
+  }
   return [
     `${extless}.test.ts`,
     `${extless}.spec.ts`,
@@ -140,6 +156,14 @@ function relatedTestCandidates(sourcePath: string): string[] {
     `${packageRoot}/src/tests/${fileBase}.test.ts`,
     `${packageRoot}/tests/${fileBase}.test.ts`,
   ].filter((p) => !p.startsWith("./"));
+}
+
+function isLikelyRelatedTest(sourcePath: string, language: string, testPath: string): boolean {
+  if (language !== "python") return false;
+  const fileBase = sourcePath.replace(/\.[^.]+$/, "").split("/").pop();
+  if (!fileBase || !testPath.endsWith(".py")) return false;
+  const testName = testPath.split("/").pop() ?? testPath;
+  return testName === `test_${fileBase}.py` || testName === `${fileBase}_test.py`;
 }
 
 function isConfigWorkflowOrDeploy(node: ArchitectureNode): boolean {

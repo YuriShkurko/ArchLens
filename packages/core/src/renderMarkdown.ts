@@ -58,9 +58,10 @@ export function renderMarkdown(diff: ArchitectureDiff, options: RenderOptions = 
   lines.push("## Appendix: limitations and caveats", "");
   lines.push("- ArchLens does not know author intent or whether CI, tests, or deployment workflows have passed unless that evidence is provided separately.");
   if (hasWorkflowChange(diff)) lines.push("- A workflow/config/package/deployment file changed; verify the relevant local command or CI job before merge.");
-  lines.push("- Dependency and related-test inference currently comes from language-specific analyzers; v0.1.x ships TypeScript/JavaScript first.");
-  lines.push("- TypeScript path aliases and non-relative imports may be unresolved in v0.1.");
-  lines.push("- Dynamic imports are only detected when the specifier is a string literal.");
+  lines.push("- Dependency and related-test inference comes from language-specific analyzers; v0.2.x ships TypeScript/JavaScript plus a Python analyzer MVP.");
+  lines.push("- TypeScript path aliases and non-relative imports may be unresolved.");
+  lines.push("- Python dynamic/runtime imports, namespace package edge cases, type analysis, symbol/call graphs, and FastAPI route intelligence are not implemented.");
+  lines.push("- JavaScript dynamic imports are only detected when the specifier is a string literal.");
   lines.push("- Risk signals are deterministic heuristics, not proof of bugs.", "");
 
   renderMermaidSection(lines, mermaid, diff, mode);
@@ -185,12 +186,13 @@ function prioritizeNodeExamples(nodes: ArchitectureNode[], diff: ArchitectureDif
 }
 
 function nodeExampleRank(node: ArchitectureNode, supported: Set<string>): number {
-  if (supported.has(node.language)) return 0;
+  if (node.language === "typescript" || node.language === "javascript") return 0;
   if (node.kind === "config" || node.kind === "workflow") return 1;
-  if (node.kind === "test") return 2;
-  if (unsupportedLanguageLabel(node)) return 3;
-  if (node.kind === "docs") return 4;
-  return 5;
+  if (supported.has(node.language)) return 2;
+  if (node.kind === "test") return 3;
+  if (unsupportedLanguageLabel(node)) return 4;
+  if (node.kind === "docs") return 5;
+  return 6;
 }
 
 function compactTextLine(lines: string[], label: string, items: string[], limit: number): void {
@@ -248,6 +250,9 @@ function analyzerScopeLines(diff: ArchitectureDiff, mode: ReportMode): string[] 
   const lines = names.length > 0
     ? [`- ArchLens analyzed ${formatLanguages(languages)} architecture facts in this repository.`, `- Active analyzer metadata: ${names.map((name) => `\`${name}\``).join(", ")}.`]
     : ["- No analyzer metadata was recorded for this diff."];
+  for (const analyzer of diff.analyzers.filter((analyzer) => analyzer.name === "python")) {
+    lines.push(`- Python analyzer limitations: ${analyzer.limitations.map((item) => `\`${item}\``).join(", ")}.`);
+  }
   const counts = unsupportedLanguageCounts(diff);
   for (const [language, count] of counts) {
     lines.push(`- Unsupported ${language} files changed: ${count}. ${language} dependency analysis is not supported in this version.`);
@@ -258,6 +263,7 @@ function analyzerScopeLines(diff: ArchitectureDiff, mode: ReportMode): string[] 
 
 function formatLanguages(languages: string[]): string {
   if (languages.length === 0) return "recorded";
+  if (languages.includes("typescript") && languages.includes("javascript") && languages.includes("python") && languages.length === 3) return "TypeScript/JavaScript and Python";
   if (languages.includes("typescript") && languages.includes("javascript") && languages.length === 2) return "TypeScript/JavaScript";
   return languages.join("/");
 }
@@ -265,15 +271,16 @@ function formatLanguages(languages: string[]): string {
 function unsupportedLanguageCounts(diff: ArchitectureDiff): Array<[string, number]> {
   const counts = new Map<string, number>();
   for (const node of [...diff.addedNodes, ...diff.removedNodes, ...diff.changedNodes]) {
-    const label = unsupportedLanguageLabel(node);
+    const label = unsupportedLanguageLabel(node, diff);
     if (!label) continue;
     counts.set(label, (counts.get(label) ?? 0) + 1);
   }
   return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 }
 
-function unsupportedLanguageLabel(node: ArchitectureNode): string | undefined {
-  if (node.language === "typescript" || node.language === "javascript") return undefined;
+function unsupportedLanguageLabel(node: ArchitectureNode, diff?: ArchitectureDiff): string | undefined {
+  const supported = new Set(diff?.analyzers.flatMap((analyzer) => analyzer.languages) ?? ["typescript", "javascript", "python"]);
+  if (supported.has(node.language)) return undefined;
   if (node.language === "python" || node.path.endsWith(".py")) return "Python";
   if (node.language === "go" || node.path.endsWith(".go")) return "Go";
   if (node.language === "java" || node.path.endsWith(".java")) return "Java";
@@ -285,7 +292,7 @@ function unsupportedLanguageLabel(node: ArchitectureNode): string | undefined {
 
 function changedUnsupportedLanguagePaths(diff: ArchitectureDiff): string[] {
   return [...diff.addedNodes, ...diff.removedNodes, ...diff.changedNodes]
-    .filter((node) => unsupportedLanguageLabel(node) !== undefined)
+    .filter((node) => unsupportedLanguageLabel(node, diff) !== undefined)
     .map((node) => node.path)
     .sort();
 }

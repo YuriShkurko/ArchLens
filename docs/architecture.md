@@ -2,7 +2,7 @@
 
 ArchLens is a repository-focused architecture-impact analyzer. It is not a TypeScript-only product.
 
-The v0.1.x implementation ships with TypeScript/JavaScript analysis first because those languages are practical to analyze deterministically with local static imports. The product model is broader: language-specific analyzers feed facts into a shared, language-neutral architecture graph.
+The v0.2.x implementation ships with TypeScript/JavaScript analysis and a Python analyzer MVP. Language-specific analyzers feed facts into a shared, language-neutral architecture graph.
 
 ```text
 TypeScript/JavaScript analyzer ─┐
@@ -11,11 +11,9 @@ Go analyzer                     │
 Java analyzer                   ┘
 ```
 
-Python support is planned next because many real target repositories are FastAPI/Python + React. It is not implemented yet.
-
 ## Language-neutral core model
 
-The core model should remain independent of any one parser or language ecosystem. It consists of:
+The core model remains independent of any one parser or language ecosystem. It consists of:
 
 - **Architecture nodes** — files/modules/packages or other structural units.
 - **Architecture edges** — dependency relationships such as imports.
@@ -28,7 +26,7 @@ The core model should remain independent of any one parser or language ecosystem
 
 ## Analyzer role
 
-Language analyzers produce facts for the core graph. They may know how to parse imports, resolve relative paths, identify tests, or report language-specific limitations.
+Language analyzers produce facts for the core graph. They may know how to parse imports, resolve local paths, identify tests, or report language-specific limitations.
 
 The reporting engine should not care whether facts came from TypeScript, Python, Go, Java, or another analyzer. It should render:
 
@@ -37,11 +35,11 @@ The reporting engine should not care whether facts came from TypeScript, Python,
 - which language areas were unsupported;
 - which limitations affect the report.
 
-## Current v0.1.x shape
+## Current analyzer shape
 
 Current analyzer metadata is recorded in snapshots under `analyzers`.
 
-The first analyzer is `typescript-javascript`, covering:
+The `typescript-javascript` analyzer covers:
 
 - TypeScript
 - JavaScript
@@ -50,16 +48,28 @@ The first analyzer is `typescript-javascript`, covering:
 - `.mjs`
 - `.cjs`
 
-This is intentionally analyzer-shaped, but ArchLens does not yet have a plugin loader or formal adapter framework. That should wait until at least two analyzers exist and the core graph has stabilized.
+The `python` analyzer MVP covers:
+
+- `.py` files;
+- common static `import ...` and `from ... import ...` forms;
+- basic relative imports;
+- local module resolution to `.py` and `__init__.py` files;
+- deterministic Python related-test path heuristics.
+
+The Python analyzer does not implement dynamic/runtime import resolution, type analysis, symbol/call graphs, namespace package completeness, or FastAPI route intelligence.
+
+ArchLens still does not have a plugin loader or formal adapter framework. That boundary should be extracted after the current analyzers have stabilized through dogfood, not before.
 
 ## Boundaries
 
-ArchLens v0.1.x does not implement:
+ArchLens v0.2.x does not implement:
 
-- Python import analysis;
 - a plugin system;
 - AI inference;
 - GitHub App behavior;
-- SaaS/dashboard/database/auth/MCP surfaces.
+- SaaS/dashboard/database/auth/MCP surfaces;
+- deep symbol or call graphs;
+- FastAPI-specific route analysis;
+- broad multi-language support beyond the current analyzers.
 
 Unsupported language files may still appear as repository facts so reports can say, honestly, that they changed but were not dependency-analyzed in this version.

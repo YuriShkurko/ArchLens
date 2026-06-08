@@ -7,13 +7,22 @@ function snap(nodes: ArchitectureSnapshot["nodes"], edges: ArchitectureSnapshot[
     version: "0.1",
     createdAt: "2026-01-01T00:00:00.000Z",
     repoRoot: "/tmp/repo",
-    analyzers: [{
-      name: "typescript-javascript",
-      languages: ["typescript", "javascript"],
-      fileExtensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
-      capabilities: ["static-imports", "exports", "require-string-literals", "dynamic-import-string-literals", "relative-import-resolution", "test-path-heuristics"],
-      limitations: ["tsconfig-path-aliases-not-fully-resolved", "dynamic-expressions-not-resolved", "no-symbol-call-graph"],
-    }],
+    analyzers: [
+      {
+        name: "typescript-javascript",
+        languages: ["typescript", "javascript"],
+        fileExtensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+        capabilities: ["static-imports", "exports", "require-string-literals", "dynamic-import-string-literals", "relative-import-resolution", "test-path-heuristics"],
+        limitations: ["tsconfig-path-aliases-not-fully-resolved", "dynamic-expressions-not-resolved", "no-symbol-call-graph"],
+      },
+      {
+        name: "python",
+        languages: ["python"],
+        fileExtensions: [".py"],
+        capabilities: ["static-imports", "from-imports", "relative-imports-basic", "local-module-resolution-basic", "test-path-heuristics"],
+        limitations: ["dynamic-imports-not-resolved", "runtime-imports-not-resolved", "no-type-analysis", "no-symbol-call-graph", "namespace-package-resolution-limited", "fastapi-route-analysis-not-implemented"],
+      },
+    ],
     nodes,
     edges,
     stats: { nodeCount: nodes.length, edgeCount: edges.length, sourceCount: nodes.filter((n) => n.kind === "source").length, testCount: nodes.filter((n) => n.kind === "test").length, externalImportCount: 0 },
@@ -60,21 +69,22 @@ describe("diffArchitectureSnapshots", () => {
     expect(diff.reviewOrder.indexOf("frontend/src/api.ts")).toBeLessThan(diff.reviewOrder.indexOf("frontend/src/routes/A.tsx"));
   });
 
-  it("reports unsupported changed Python files as scope limitations", () => {
+  it("treats changed Python files as supported and keeps non-Python unsupported language warnings", () => {
     const before = snap([
       { id: "backend/app.py", path: "backend/app.py", kind: "source", language: "python", riskTags: [], contentHash: "a" },
+      { id: "service/main.go", path: "service/main.go", kind: "source", language: "go", riskTags: [], contentHash: "go-a" },
     ], []);
     const after = snap([
       { id: "backend/app.py", path: "backend/app.py", kind: "source", language: "python", riskTags: [], contentHash: "b" },
+      { id: "service/main.go", path: "service/main.go", kind: "source", language: "go", riskTags: [], contentHash: "go-b" },
     ], []);
 
     const diff = diffArchitectureSnapshots(before, after);
-    expect(diff.changedNodes.map((node) => node.path)).toEqual(["backend/app.py"]);
-    expect(diff.riskSignals).toContainEqual(expect.objectContaining({ id: "unsupported-source-changed-test-inference-unavailable", paths: ["backend/app.py"] }));
-    expect(diff.potentialRelatedTests).toEqual([]);
+    expect(diff.riskSignals).toContainEqual(expect.objectContaining({ id: "python-source-changed-without-related-tests", paths: ["backend/app.py"] }));
+    expect(diff.riskSignals).toContainEqual(expect.objectContaining({ id: "unsupported-source-changed-test-inference-unavailable", paths: ["service/main.go"] }));
   });
 
-  it("finds potential related existing tests for changed source files", () => {
+  it("finds potential related existing tests for changed TypeScript source files", () => {
     const before = snap([
       { id: "packages/core/src/importScanner.ts", path: "packages/core/src/importScanner.ts", kind: "source", language: "typescript", riskTags: [], contentHash: "a" },
       { id: "packages/core/src/tests/importScanner.test.ts", path: "packages/core/src/tests/importScanner.test.ts", kind: "test", language: "typescript", riskTags: [], contentHash: "t" },
@@ -87,5 +97,20 @@ describe("diffArchitectureSnapshots", () => {
     const diff = diffArchitectureSnapshots(before, after);
     expect(diff.changedTestFiles).toEqual([]);
     expect(diff.potentialRelatedTests).toEqual(["packages/core/src/tests/importScanner.test.ts"]);
+  });
+
+  it("finds potential related existing tests for changed Python source files", () => {
+    const before = snap([
+      { id: "backend/src/ai_job_radar/application/services/score_jobs.py", path: "backend/src/ai_job_radar/application/services/score_jobs.py", kind: "source", language: "python", riskTags: [], contentHash: "a" },
+      { id: "backend/tests/application/services/test_score_jobs.py", path: "backend/tests/application/services/test_score_jobs.py", kind: "test", language: "python", riskTags: [], contentHash: "t" },
+    ], []);
+    const after = snap([
+      { id: "backend/src/ai_job_radar/application/services/score_jobs.py", path: "backend/src/ai_job_radar/application/services/score_jobs.py", kind: "source", language: "python", riskTags: [], contentHash: "b" },
+      { id: "backend/tests/application/services/test_score_jobs.py", path: "backend/tests/application/services/test_score_jobs.py", kind: "test", language: "python", riskTags: [], contentHash: "t" },
+    ], []);
+
+    const diff = diffArchitectureSnapshots(before, after);
+    expect(diff.potentialRelatedTests).toEqual(["backend/tests/application/services/test_score_jobs.py"]);
+    expect(diff.riskSignals.map((signal) => signal.id)).not.toContain("python-source-changed-without-related-tests");
   });
 });

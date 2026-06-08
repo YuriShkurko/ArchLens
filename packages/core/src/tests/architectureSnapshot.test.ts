@@ -21,24 +21,22 @@ describe("createArchitectureSnapshot", () => {
     });
     expect(snapshot.stats.nodeCount).toBeGreaterThanOrEqual(3);
     expect(snapshot.stats.edgeCount).toBeGreaterThanOrEqual(1);
-    expect(snapshot.analyzers).toContainEqual({
-      name: "typescript-javascript",
-      languages: ["typescript", "javascript"],
-      fileExtensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
-      capabilities: ["static-imports", "exports", "require-string-literals", "dynamic-import-string-literals", "relative-import-resolution", "test-path-heuristics"],
-      limitations: ["tsconfig-path-aliases-not-fully-resolved", "dynamic-expressions-not-resolved", "no-symbol-call-graph"],
-    });
+    expect(snapshot.analyzers.map((analyzer) => analyzer.name)).toEqual(["typescript-javascript", "python"]);
   });
 
-  it("includes unsupported known-language files as unanalyzed source facts", () => {
-    const root = mkdtempSync(path.join(tmpdir(), "archlens-unsupported-"));
+  it("includes Python nodes, resolved Python edges, and Python analyzer metadata", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "archlens-python-snapshot-"));
     try {
-      mkdirSync(path.join(root, "backend"), { recursive: true });
-      writeFileSync(path.join(root, "backend", "app.py"), "print('hello')\n");
+      mkdirSync(path.join(root, "backend/src/ai_job_radar/config"), { recursive: true });
+      mkdirSync(path.join(root, "backend/src/ai_job_radar/application/services"), { recursive: true });
+      writeFileSync(path.join(root, "backend/src/ai_job_radar/__init__.py"), "");
+      writeFileSync(path.join(root, "backend/src/ai_job_radar/config/settings.py"), "class Settings: pass\n");
+      writeFileSync(path.join(root, "backend/src/ai_job_radar/application/services/score_jobs.py"), "from ai_job_radar.config.settings import Settings\n");
 
       const snapshot = createArchitectureSnapshot(root, new Date("2026-01-01T00:00:00.000Z"));
-      expect(snapshot.nodes).toContainEqual(expect.objectContaining({ path: "backend/app.py", kind: "source", language: "python" }));
-      expect(snapshot.edges).toEqual([]);
+      expect(snapshot.nodes).toContainEqual(expect.objectContaining({ path: "backend/src/ai_job_radar/application/services/score_jobs.py", kind: "source", language: "python" }));
+      expect(snapshot.edges).toContainEqual(expect.objectContaining({ from: "backend/src/ai_job_radar/application/services/score_jobs.py", to: "backend/src/ai_job_radar/config/settings.py", kind: "import" }));
+      expect(snapshot.analyzers).toContainEqual(expect.objectContaining({ name: "python", languages: ["python"], fileExtensions: [".py"] }));
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

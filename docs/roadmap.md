@@ -1,47 +1,29 @@
 # ArchLens Roadmap
 
-ArchLens is a language-agnostic architecture-impact analyzer for repositories. The implementation starts with TypeScript/JavaScript because deterministic import analysis is tractable, but the product goal is not TypeScript-only analysis.
+ArchLens is a language-agnostic architecture-impact analyzer for repositories. The implementation started with TypeScript/JavaScript because deterministic import analysis is tractable; v0.2.0 adds a Python analyzer MVP while preserving the same shared core graph.
 
 Avoid expanding into AI, SaaS, dashboards, GitHub Apps, databases, auth, MCP, or broad product surfaces while the core graph and reports are still stabilizing.
 
 ## Phase 1 — JS/TS support + prove report quality
 
-Status: in progress / v0.1.x.
+Status: stable baseline / v0.1.5.
 
-Goals:
+Completed goals:
 
-- Keep TypeScript/JavaScript snapshot, diff, risk, test, review-order, and report behavior stable.
-- Continue external dogfood on real TypeScript/React changes.
-- Preserve deterministic report quality improvements proven in AIJobRadar dogfood.
-- Keep compact PR-ready report mode useful while preserving full details through JSON and `render --mode full`.
-- Keep analyzer capability metadata in snapshots so reports state what was actually analyzed.
-
-Near-term work:
-
-1. **Support tsconfig path aliases**
-   - Resolve imports such as `@/core/foo` or workspace aliases from `tsconfig.json`.
-   - Keep unresolved imports explicit in report caveats.
-
-2. **Improve Mermaid graph readability**
-   - Group nodes by folder/package where possible.
-   - Keep diagrams useful for small changes and avoid noisy output for large changes.
-
-3. **Detect package-level modules**
-   - Summarize changes at package/workspace level in addition to file-level nodes.
-   - Preserve file-level facts for reviewer traceability.
-
-4. **Improve related-test matching**
-   - Add more deterministic naming and directory heuristics.
-   - Consider source-to-test import edges when tests import changed source modules.
+- TypeScript/JavaScript snapshot, diff, risk, test, review-order, and report behavior stabilized enough for dogfood.
+- External dogfood on AIJobRadar reached 4.4 / 5 usefulness and 4 / 5 PR paste score.
+- Compact PR-ready report mode exists while full details remain available through JSON and `render --mode full`.
+- Analyzer capability metadata is recorded in snapshots and reports.
 
 ## Phase 2 — Python analyzer MVP
 
-Status: planned, not implemented.
+Status: in progress / v0.2.0.
 
 Why Python next:
 
 - Many realistic target repositories are FastAPI/Python + React.
-- AIJobRadar dogfood showed that mixed Python + TypeScript repos are useful targets, but Python dependency/test inference is currently a scope limitation.
+- AIJobRadar dogfood showed that mixed Python + TypeScript repos are useful targets.
+- v0.1.5 surfaced Python honestly as unsupported; v0.2.0 should turn common Python imports and test paths into deterministic graph facts.
 
 MVP goals:
 
@@ -50,19 +32,22 @@ MVP goals:
 - Add Python test-path heuristics.
 - Feed Python facts into the same language-neutral architecture graph as TypeScript/JavaScript facts.
 - Keep reports honest about unsupported or unresolved Python patterns.
+- Preserve v0.1.5 TypeScript/React report quality and compact PR mode.
 
 Non-goals for the Python MVP:
 
 - no AI inference;
 - no deep symbol/call graph;
 - no full type analysis;
+- no FastAPI route intelligence;
+- no runtime import or `sys.path` analysis;
 - no plugin loader yet.
 
-## Phase 3 — Formal analyzer adapter/plugin architecture
+## Phase 3 — Stabilize analyzer boundary
 
 Status: future.
 
-Only introduce a formal analyzer interface after at least two analyzers exist and the core graph has stabilized through dogfood.
+Only introduce a formal analyzer interface after the TypeScript/JavaScript and Python analyzers both prove their needs through dogfood.
 
 Likely goals:
 
@@ -71,4 +56,12 @@ Likely goals:
 - Allow analyzers to emit nodes, edges, test evidence, capabilities, and limitations.
 - Keep the impact/risk/reporting engines language-neutral.
 
-Do not build this prematurely. A plugin framework before a second analyzer would likely encode the wrong abstractions.
+Do not build this prematurely. A plugin framework before the second analyzer is dogfooded would likely encode the wrong abstractions.
+
+## Later possibilities
+
+- Support tsconfig path aliases.
+- Improve Mermaid graph readability.
+- Detect package-level modules while preserving file-level facts.
+- Improve related-test matching through deterministic source-to-test import edges.
+- Consider Go, Java, and other ecosystems after the core graph and Python analyzer prove the model.
