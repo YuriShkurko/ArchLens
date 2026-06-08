@@ -1,6 +1,7 @@
 {
   "name": "@archlens/core",
-  "version": "0.2.1",
+  "version": "0.2.2",
+  "description": "Core library for local-first architecture-impact reports for repositories.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,6 +11,11 @@
       "import": "./dist/index.js"
     }
   },
+  "files": [
+    "dist",
+    "package.json",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",

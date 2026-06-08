@@ -1,10 +1,16 @@
 {
   "name": "@archlens/cli",
-  "version": "0.2.1",
+  "version": "0.2.2",
+  "description": "Local-first architecture-impact reports for repositories.",
   "type": "module",
   "bin": {
     "archlens": "dist/index.js"
   },
+  "files": [
+    "dist",
+    "package.json",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json && node -e \"const fs=require('fs');fs.chmodSync('dist/index.js',0o755)\"",
     "start": "node dist/index.js",

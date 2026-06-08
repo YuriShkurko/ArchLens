@@ -12,6 +12,36 @@ git change → architecture snapshot → architecture diff → risk/impact repor
 
 ArchLens is **not** a commit-summary generator, PR-description generator, AI code reviewer, bug finder, SaaS dashboard, GitHub App, database-backed service, or chatbot.
 
+## Try it locally
+
+Development workspace usage:
+
+```bash
+pnpm install
+pnpm build
+pnpm archlens -- snapshot
+pnpm archlens -- diff --base main --head HEAD
+pnpm archlens -- render --mode pr
+```
+
+Local global/link-style usage after cloning ArchLens:
+
+```bash
+pnpm install
+pnpm build
+cd apps/cli
+npm link
+archlens --help
+```
+
+If you only want to smoke-test the packaged CLI locally without publishing:
+
+```bash
+scripts/smoke-pack.sh
+```
+
+See `docs/usage.md` for install/link/pack details, common errors, and how to read PR vs full reports. ArchLens is not published to npm yet.
+
 ## Quickstart
 
 Clone and install:
@@ -43,10 +73,10 @@ pnpm archlens diff --base main --head HEAD
 Render the compact PR-ready Markdown report:
 
 ```bash
-pnpm archlens render
+pnpm archlens render --mode pr
 ```
 
-Render the full-detail Markdown report when you need complete node/edge lists and the full Mermaid diagram:
+`pr` is the default render mode. Render the full-detail Markdown report when you need complete node/edge lists and the full Mermaid diagram:
 
 ```bash
 pnpm archlens render --mode full
@@ -146,7 +176,8 @@ Root package scripts are intentionally small:
 - `pnpm typecheck`
 - `pnpm build`
 - `pnpm test`
-- `pnpm archlens -- <command>` / `pnpm archlens snapshot`
+- `pnpm archlens -- <command>`
+- `pnpm smoke:pack`
 
 ## Roadmap
 

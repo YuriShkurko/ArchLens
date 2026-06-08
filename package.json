@@ -1,15 +1,16 @@
 {
   "name": "archlens",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
-  "description": "Local-first architecture-impact reports for git changes.",
+  "description": "Local-first architecture-impact reports for repositories.",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "scripts": {
     "build": "pnpm -r build",
     "typecheck": "pnpm --filter @archlens/core typecheck && pnpm --filter @archlens/core build && pnpm --filter @archlens/cli typecheck",
     "test": "pnpm -r test",
-    "archlens": "pnpm --filter @archlens/cli start --"
+    "archlens": "node apps/cli/dist/index.js",
+    "smoke:pack": "scripts/smoke-pack.sh"
   },
   "devDependencies": {
     "@types/node": "^20.19.0",
