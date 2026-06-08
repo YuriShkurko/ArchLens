@@ -67,6 +67,7 @@ describe("diffArchitectureSnapshots", () => {
 
     const diff = diffArchitectureSnapshots(before, after);
     expect(diff.reviewOrder.indexOf("frontend/src/api.ts")).toBeLessThan(diff.reviewOrder.indexOf("frontend/src/routes/A.tsx"));
+    expect(diff.reviewRationale).toContain("`frontend/src/api.ts` ranked early because it is imported by 3 changed route modules.");
   });
 
   it("treats changed Python files as supported and keeps non-Python unsupported language warnings", () => {
@@ -99,7 +100,7 @@ describe("diffArchitectureSnapshots", () => {
     expect(diff.potentialRelatedTests).toEqual(["packages/core/src/tests/importScanner.test.ts"]);
   });
 
-  it("finds potential related existing tests for changed Python source files", () => {
+  it("finds potential related existing tests for changed Python source files by path heuristic", () => {
     const before = snap([
       { id: "backend/src/ai_job_radar/application/services/score_jobs.py", path: "backend/src/ai_job_radar/application/services/score_jobs.py", kind: "source", language: "python", riskTags: [], contentHash: "a" },
       { id: "backend/tests/application/services/test_score_jobs.py", path: "backend/tests/application/services/test_score_jobs.py", kind: "test", language: "python", riskTags: [], contentHash: "t" },
@@ -112,5 +113,40 @@ describe("diffArchitectureSnapshots", () => {
     const diff = diffArchitectureSnapshots(before, after);
     expect(diff.potentialRelatedTests).toEqual(["backend/tests/application/services/test_score_jobs.py"]);
     expect(diff.riskSignals.map((signal) => signal.id)).not.toContain("python-source-changed-without-related-tests");
+  });
+
+  it("finds potential related Python tests when a test imports the changed source module", () => {
+    const before = snap([
+      { id: "backend/src/app/services/score_jobs.py", path: "backend/src/app/services/score_jobs.py", kind: "source", language: "python", riskTags: [], contentHash: "a" },
+      { id: "backend/tests/test_scoring.py", path: "backend/tests/test_scoring.py", kind: "test", language: "python", riskTags: [], contentHash: "t" },
+    ], [{ from: "backend/tests/test_scoring.py", to: "backend/src/app/services/score_jobs.py", kind: "import", sourcePath: "backend/tests/test_scoring.py" }]);
+    const after = snap([
+      { id: "backend/src/app/services/score_jobs.py", path: "backend/src/app/services/score_jobs.py", kind: "source", language: "python", riskTags: [], contentHash: "b" },
+      { id: "backend/tests/test_scoring.py", path: "backend/tests/test_scoring.py", kind: "test", language: "python", riskTags: [], contentHash: "t" },
+    ], [{ from: "backend/tests/test_scoring.py", to: "backend/src/app/services/score_jobs.py", kind: "import", sourcePath: "backend/tests/test_scoring.py" }]);
+
+    const diff = diffArchitectureSnapshots(before, after);
+    expect(diff.potentialRelatedTests).toEqual(["backend/tests/test_scoring.py"]);
+    expect(diff.riskSignals.map((signal) => signal.id)).not.toContain("python-source-changed-without-related-tests");
+  });
+
+  it("explains Python review-order centrality for shared dependencies", () => {
+    const before = snap([
+      { id: "backend/src/app/config.py", path: "backend/src/app/config.py", kind: "source", language: "python", riskTags: [], contentHash: "config" },
+      { id: "backend/src/app/a.py", path: "backend/src/app/a.py", kind: "source", language: "python", riskTags: [], contentHash: "a" },
+      { id: "backend/src/app/b.py", path: "backend/src/app/b.py", kind: "source", language: "python", riskTags: [], contentHash: "b" },
+    ], []);
+    const after = snap([
+      { id: "backend/src/app/config.py", path: "backend/src/app/config.py", kind: "source", language: "python", riskTags: [], contentHash: "config" },
+      { id: "backend/src/app/a.py", path: "backend/src/app/a.py", kind: "source", language: "python", riskTags: [], contentHash: "a2" },
+      { id: "backend/src/app/b.py", path: "backend/src/app/b.py", kind: "source", language: "python", riskTags: [], contentHash: "b2" },
+    ], [
+      { from: "backend/src/app/a.py", to: "backend/src/app/config.py", kind: "import", sourcePath: "backend/src/app/a.py" },
+      { from: "backend/src/app/b.py", to: "backend/src/app/config.py", kind: "import", sourcePath: "backend/src/app/b.py" },
+    ]);
+
+    const diff = diffArchitectureSnapshots(before, after);
+    expect(diff.reviewOrder.indexOf("backend/src/app/config.py")).toBeLessThan(diff.reviewOrder.indexOf("backend/src/app/a.py"));
+    expect(diff.reviewRationale).toContain("`backend/src/app/config.py` ranked early because Python module is imported by 2 changed modules.");
   });
 });

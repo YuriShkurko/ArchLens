@@ -22,9 +22,10 @@ export function diffArchitectureSnapshots(baseSnapshot: ArchitectureSnapshot, he
     .filter((node) => node.kind === "test")
     .map((node) => node.path)
     .sort();
-  const potentialRelatedTests = findPotentialRelatedTests([...addedNodes, ...changedNodes], headSnapshot.nodes);
+  const potentialRelatedTests = findPotentialRelatedTests([...addedNodes, ...changedNodes], headSnapshot.nodes, headSnapshot.edges);
   const riskSignals = detectRiskSignals({ addedNodes, removedNodes, changedNodes, addedEdges, removedEdges, baseSnapshot, headSnapshot, changedTestFiles, potentialRelatedTests });
   const reviewOrder = buildReviewOrder({ addedNodes, removedNodes, changedNodes, addedEdges, removedEdges, riskSignals, baseSnapshot, headSnapshot });
+  const reviewRationale = buildReviewRationale({ addedNodes, removedNodes, changedNodes, addedEdges, removedEdges, riskSignals, baseSnapshot, headSnapshot, reviewOrder });
 
   const diff: ArchitectureDiff = {
     version: ARCHLENS_VERSION,
@@ -39,6 +40,7 @@ export function diffArchitectureSnapshots(baseSnapshot: ArchitectureSnapshot, he
     analyzers: headSnapshot.analyzers,
     riskSignals,
     reviewOrder,
+    reviewRationale,
     changedTestFiles,
     potentialRelatedTests,
     stats: {
@@ -62,6 +64,7 @@ interface ReviewOrderInput {
   riskSignals: RiskSignal[];
   baseSnapshot: ArchitectureSnapshot;
   headSnapshot: ArchitectureSnapshot;
+  reviewOrder?: string[];
 }
 
 function buildReviewOrder(input: ReviewOrderInput): string[] {
@@ -116,10 +119,49 @@ function buildReviewOrder(input: ReviewOrderInput): string[] {
   return [...ordered].filter(Boolean).slice(0, 30);
 }
 
-function findPotentialRelatedTests(changedNodes: ArchitectureNode[], allNodes: ArchitectureNode[]): string[] {
+function buildReviewRationale(input: ReviewOrderInput): string[] {
+  const touched = [...input.addedNodes, ...input.changedNodes, ...input.removedNodes];
+  const changedOrAddedSources = new Set([...input.addedNodes, ...input.changedNodes].filter((node) => node.kind === "source").map((node) => node.path));
+  const nodesByPath = new Map([...input.baseSnapshot.nodes, ...input.headSnapshot.nodes].map((node) => [node.path, node]));
+  const rationale = new Set<string>();
+
+  for (const pathName of input.reviewOrder ?? []) {
+    const node = nodesByPath.get(pathName);
+    if (node && isConfigWorkflowOrDeploy(node)) rationale.add(`\`${pathName}\` ranked early because it is operations/config-sensitive.`);
+  }
+
+  const importersByTarget = new Map<string, Set<string>>();
+  for (const edge of input.headSnapshot.edges) {
+    if (!changedOrAddedSources.has(edge.from)) continue;
+    const importers = importersByTarget.get(edge.to) ?? new Set<string>();
+    importers.add(edge.from);
+    importersByTarget.set(edge.to, importers);
+  }
+
+  for (const [target, importers] of [...importersByTarget.entries()].sort((a, b) => b[1].size - a[1].size || a[0].localeCompare(b[0]))) {
+    if (importers.size < 2) continue;
+    const targetNode = nodesByPath.get(target);
+    const prefix = targetNode?.language === "python" || target.endsWith(".py") ? "Python module" : "it";
+    const routeImporters = [...importers].filter((pathName) => /\/routes?\//.test(pathName));
+    const reason = routeImporters.length >= 2 ? `${prefix} is imported by ${routeImporters.length} changed route modules` : `${prefix} is imported by ${importers.size} changed modules`;
+    rationale.add(`\`${target}\` ranked early because ${reason}.`);
+  }
+
+  return [...rationale].slice(0, 12);
+}
+
+function findPotentialRelatedTests(changedNodes: ArchitectureNode[], allNodes: ArchitectureNode[], edges: ArchitectureEdge[]): string[] {
   const testNodes = allNodes.filter((node) => node.kind === "test");
   const testPaths = new Set(testNodes.map((node) => node.path));
+  const changedSourcePaths = new Set(changedNodes.filter((n) => n.kind === "source").map((node) => node.path));
   const related = new Set<string>();
+
+  for (const edge of edges) {
+    if (!changedSourcePaths.has(edge.to)) continue;
+    const importer = allNodes.find((node) => node.path === edge.from);
+    if (importer?.kind === "test") related.add(importer.path);
+  }
+
   for (const node of changedNodes.filter((n) => n.kind === "source")) {
     for (const candidate of relatedTestCandidates(node.path, node.language)) {
       if (testPaths.has(candidate)) related.add(candidate);

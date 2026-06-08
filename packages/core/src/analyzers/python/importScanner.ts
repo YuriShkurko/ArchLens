@@ -35,7 +35,18 @@ export function extractPythonImportSpecifiers(text: string): string[] {
 
 function extractPythonImportFacts(text: string): PythonImportFact[] {
   const facts: PythonImportFact[] = [];
+  let tripleQuote: "'''" | "\"\"\"" | undefined;
   for (const rawLine of text.split(/\r?\n/)) {
+    if (tripleQuote) {
+      if (rawLine.includes(tripleQuote)) tripleQuote = undefined;
+      continue;
+    }
+    const tripleStart = firstTripleQuote(rawLine);
+    if (tripleStart && !/^\s*(import|from)\b/.test(rawLine)) {
+      if (countOccurrences(rawLine, tripleStart) % 2 === 1) tripleQuote = tripleStart;
+      continue;
+    }
+
     const line = stripComment(rawLine).trimEnd();
     if (!line || line.startsWith("#")) continue;
 
@@ -122,7 +133,7 @@ function moduleSuffixes(specifier: string): string[] {
 }
 
 function sourceRoots(allPythonPaths: string[]): string[] {
-  const roots = new Set<string>(["", "backend/src", "src"]);
+  const roots = new Set<string>(["", "backend/src", "src", "app", "backend"]);
   for (const filePath of allPythonPaths) {
     if (filePath.includes("/src/")) roots.add(filePath.slice(0, filePath.indexOf("/src/") + 4));
   }
@@ -161,6 +172,25 @@ function readDirSafe(dir: string) {
   } catch {
     return [];
   }
+}
+
+function firstTripleQuote(line: string): "'''" | "\"\"\"" | undefined {
+  const single = line.indexOf("'''");
+  const double = line.indexOf("\"\"\"");
+  if (single === -1 && double === -1) return undefined;
+  if (single === -1) return "\"\"\"";
+  if (double === -1) return "'''";
+  return single < double ? "'''" : "\"\"\"";
+}
+
+function countOccurrences(line: string, needle: string): number {
+  let count = 0;
+  let index = line.indexOf(needle);
+  while (index !== -1) {
+    count++;
+    index = line.indexOf(needle, index + needle.length);
+  }
+  return count;
 }
 
 function stripComment(line: string): string {

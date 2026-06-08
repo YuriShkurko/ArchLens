@@ -184,3 +184,97 @@ Do not implement these as part of the Python MVP.
 **Decision: continue. v0.2.0 meets the Python Analyzer MVP goal and improves AIJobRadar dogfood from 4.4 / 5 to 4.6 / 5 while preserving a 4 / 5 PR paste score.**
 
 ArchLens now handles the main mixed FastAPI/Python + React use case better: Python files feed deterministic import edges into the same language-neutral graph as TypeScript/JavaScript, and likely backend tests are surfaced without adding AI, a plugin framework, or product-surface expansion.
+
+---
+
+# v0.2.1 hardening rerun — AIJobRadar
+
+Date: 2026-06-08
+
+## Purpose
+
+Rerun the same AIJobRadar diff after Python Analyzer Hardening to confirm that v0.2.0 behavior did not regress and that PR-mode output improved.
+
+Base/head stayed the same:
+
+- Base: `HEAD~1` = `be06dc5c50fb961106e72ca8087f1d1f1bb2fd5e`
+- Head: `HEAD` = `aeca9b8c67ed500a8de55b5bad954eb34ed791e7`
+
+Commands run:
+
+```bash
+rm -rf .archlens
+node ../ArchLens/apps/cli/dist/index.js snapshot
+node ../ArchLens/apps/cli/dist/index.js diff --base HEAD~1 --head HEAD
+node ../ArchLens/apps/cli/dist/index.js render --mode pr
+node ../ArchLens/apps/cli/dist/index.js render --mode full
+```
+
+## v0.2.1 observed counts
+
+- Snapshot nodes: 134
+- Snapshot edges: 204
+- Python nodes: 91
+- Python import edges: 186
+- Added files/modules: 19
+- Changed files/modules: 22
+- Added dependency edges: 28
+- Removed dependency edges: 2
+- Changed test files: 0
+- Potential related tests: 6
+  - `backend/tests/test_dedupe.py`
+  - `backend/tests/test_linkedin_public_provider.py`
+  - `backend/tests/test_linkedin_scraper_parser.py`
+  - `backend/tests/test_normalization.py`
+  - `backend/tests/test_scoring.py`
+  - `backend/tests/test_strictness.py`
+
+Risk signals stayed stable:
+
+- `supported-source-changed-without-tests`: 11 paths
+- `config-or-workflow-changed`: 5 paths
+- `dependency-edges-added`: 23 paths
+- `oversized-architecture-change`: 41 paths
+
+## v0.2.1 improvements over v0.2.0
+
+- Python graph size stayed stable: 91 Python nodes and 186 Python edges.
+- TypeScript/React architecture story stayed stable.
+- Potential related Python tests improved from 2 to 6 because tests that import changed source modules now count as deterministic related-test evidence.
+- Large-change risk is grouped in PR mode:
+  - `Python/backend: 22`
+  - `TypeScript/frontend: 11`
+  - `Config/package: 5`
+  - docs groups for remaining docs/history files
+- Review-order rationale now includes operations/config reasons and Python centrality from existing graph edges:
+  - `backend/src/ai_job_radar/domain/enums.py` ranked early because Python module is imported by 8 changed modules.
+  - `backend/src/ai_job_radar/application/dto/normalized_job.py` ranked early because Python module is imported by 6 changed modules.
+  - `frontend/src/types.ts` still ranked early because it is imported by 3 changed route modules.
+
+## Comparison table
+
+| Version | Python edges | Potential related tests | Large-change grouping | Review rationale | Overall usefulness | PR paste score |
+| --- | ---: | ---: | --- | --- | ---: | ---: |
+| v0.1.5 | 0 | 0 | no | TS/JS only | 4.4 / 5 | 4 / 5 |
+| v0.2.0 | 186 | 2 | no | limited Python added-edge rationale | 4.6 / 5 | 4 / 5 |
+| v0.2.1 | 186 | 6 | yes | operations + Python centrality + TS/JS centrality | 4.7 / 5 | 4 / 5 |
+
+## Evaluation
+
+- PR paste score: **4 / 5**
+- Overall usefulness: **4.7 / 5**
+
+Why the score improved:
+
+- The report is more trustworthy about Python test evidence.
+- Large-change risk is easier to scan in PR mode.
+- Python centrality rationale explains why backend shared modules are high in review order.
+
+Why PR paste score did not increase:
+
+- The diff is still large, so PR mode remains necessarily dense.
+- Six potential backend tests are useful but require the “potential, not proof” caveat.
+
+## Decision
+
+**Decision: continue. v0.2.1 preserves v0.2.0 TypeScript/React quality, keeps PR paste score at 4 / 5, improves overall usefulness to 4.7 / 5, and makes Python related-test output more trustworthy without expanding scope.**

@@ -34,6 +34,19 @@ describe("python import scanner", () => {
     ]);
   });
 
+  it("ignores import-looking lines inside triple-quoted generated code strings", () => {
+    const text = [
+      "def template():",
+      "    return '''",
+      "        from app import models",
+      "        import app.database",
+      "    '''",
+      "from real.module import Thing",
+    ].join("\n");
+
+    expect(extractPythonImportSpecifiers(text)).toEqual(["real.module", "real.module.Thing"]);
+  });
+
   it("resolves modules to .py, __init__.py, backend/src roots, and basic relative imports", () => {
     const root = makeRepo();
     write(root, "backend/src/ai_job_radar/__init__.py", "");
@@ -49,5 +62,16 @@ describe("python import scanner", () => {
     const imports = scanPythonImports(path.join(root, "backend/src/ai_job_radar/interfaces/api/routers/jobs.py"), root);
     expect(imports.map((record) => record.resolvedPath).filter(Boolean)).toContain("backend/src/ai_job_radar/config/settings.py");
     expect(imports.map((record) => record.resolvedPath).filter(Boolean)).toContain("backend/src/ai_job_radar/interfaces/api/routers/schemas.py");
+  });
+
+  it("resolves dogfood-proven app and backend source roots", () => {
+    const root = makeRepo();
+    write(root, "backend/app/__init__.py", "");
+    write(root, "backend/app/services/__init__.py", "");
+    write(root, "backend/app/services/place_service.py", "class PlaceService: pass\n");
+    write(root, "backend/tests/test_place_service.py", "from app.services.place_service import PlaceService\n");
+
+    const imports = scanPythonImports(path.join(root, "backend/tests/test_place_service.py"), root);
+    expect(imports.map((record) => record.resolvedPath).filter(Boolean)).toContain("backend/app/services/place_service.py");
   });
 });

@@ -58,7 +58,7 @@ Outputs are written locally under `.archlens/`:
 - `.archlens/architecture-diff.json` — structural diff between git refs.
 - `.archlens/architecture-impact.md` — reviewer-facing architecture-impact report.
 
-If using the built CLI binary directly inside this workspace, run `apps/cli/dist/index.js` after `pnpm build`. The CLI package also exposes a `bin` named `archlens`; publishing is intentionally out of scope for v0.1.
+If using the built CLI binary directly inside this workspace, run `apps/cli/dist/index.js` after `pnpm build`. The CLI package also exposes a `bin` named `archlens`; package publishing is intentionally out of scope for v0.2.
 
 ## What ArchLens reports
 
@@ -69,7 +69,7 @@ The Markdown report clearly separates:
 - compact key detected facts by default, with full facts available through `--mode full`;
 - inferred risk signals split between supported-analyzer test gaps and unsupported-language scope limitations;
 - changed test files;
-- potential related existing tests;
+- potential related existing tests, labeled by analyzer/language where practical;
 - unsupported related-test inference areas;
 - dependency-centrality-aware suggested review order;
 - author-provided context;

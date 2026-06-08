@@ -70,6 +70,7 @@ export const ArchitectureDiffSchema = z.object({
   analyzers: z.array(AnalyzerMetadataSchema),
   riskSignals: z.array(RiskSignalSchema),
   reviewOrder: z.array(z.string()),
+  reviewRationale: z.array(z.string()).optional(),
   changedTestFiles: z.array(z.string()),
   potentialRelatedTests: z.array(z.string()),
   stats: z.object({

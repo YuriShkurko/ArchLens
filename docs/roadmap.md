@@ -1,6 +1,6 @@
 # ArchLens Roadmap
 
-ArchLens is a language-agnostic architecture-impact analyzer for repositories. The implementation started with TypeScript/JavaScript because deterministic import analysis is tractable; v0.2.0 adds a Python analyzer MVP while preserving the same shared core graph.
+ArchLens is a language-agnostic architecture-impact analyzer for repositories. The implementation started with TypeScript/JavaScript because deterministic import analysis is tractable; v0.2.x adds and hardens a Python analyzer MVP while preserving the same shared core graph.
 
 Avoid expanding into AI, SaaS, dashboards, GitHub Apps, databases, auth, MCP, or broad product surfaces while the core graph and reports are still stabilizing.
 
@@ -17,21 +17,22 @@ Completed goals:
 
 ## Phase 2 — Python analyzer MVP
 
-Status: in progress / v0.2.0.
+Status: in progress / v0.2.1 hardening.
 
 Why Python next:
 
 - Many realistic target repositories are FastAPI/Python + React.
 - AIJobRadar dogfood showed that mixed Python + TypeScript repos are useful targets.
-- v0.1.5 surfaced Python honestly as unsupported; v0.2.0 should turn common Python imports and test paths into deterministic graph facts.
+- v0.1.5 surfaced Python honestly as unsupported; v0.2.x turns common Python imports and test paths into deterministic graph facts.
 
 MVP goals:
 
 - Parse deterministic Python import facts.
 - Resolve common relative/module imports where practical.
-- Add Python test-path heuristics.
+- Add Python test-path and source-to-test import-edge heuristics.
 - Feed Python facts into the same language-neutral architecture graph as TypeScript/JavaScript facts.
 - Keep reports honest about unsupported or unresolved Python patterns.
+- Keep PR-mode large-change risks grouped by language/folder where useful.
 - Preserve v0.1.5 TypeScript/React report quality and compact PR mode.
 
 Non-goals for the Python MVP:
@@ -63,5 +64,5 @@ Do not build this prematurely. A plugin framework before the second analyzer is 
 - Support tsconfig path aliases.
 - Improve Mermaid graph readability.
 - Detect package-level modules while preserving file-level facts.
-- Improve related-test matching through deterministic source-to-test import edges.
+- Continue improving related-test matching only through deterministic, dogfood-proven heuristics.
 - Consider Go, Java, and other ecosystems after the core graph and Python analyzer prove the model.

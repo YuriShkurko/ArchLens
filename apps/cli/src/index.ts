@@ -7,7 +7,7 @@ const program = new Command();
 program
   .name("archlens")
   .description("See how every code change affects your architecture.")
-  .version("0.2.0");
+  .version("0.2.1");
 
 program
   .command("snapshot")

@@ -1,5 +1,5 @@
 import { edgeLabel, renderMermaid } from "./renderMermaid.js";
-import type { ArchitectureDiff, ArchitectureNode, RiskSignal } from "./schema.js";
+import type { ArchitectureDiff, ArchitectureNode } from "./schema.js";
 
 export type ReportMode = "pr" | "full";
 
@@ -41,7 +41,7 @@ export function renderMarkdown(diff: ArchitectureDiff, options: RenderOptions = 
   renderConfigVerification(lines, diff, mode);
 
   lines.push("## Key risks", "");
-  renderRiskSignals(lines, diff.riskSignals, mode);
+  renderRiskSignals(lines, diff, mode);
 
   lines.push("## Tests", "");
   renderTestsSection(lines, diff, mode);
@@ -106,15 +106,19 @@ function renderConfigVerification(lines: string[], diff: ArchitectureDiff, mode:
   lines.push("");
 }
 
-function renderRiskSignals(lines: string[], signals: RiskSignal[], mode: ReportMode): void {
-  if (signals.length === 0) {
+function renderRiskSignals(lines: string[], diff: ArchitectureDiff, mode: ReportMode): void {
+  if (diff.riskSignals.length === 0) {
     lines.push("- No risk signals detected by the current deterministic rules.", "");
     return;
   }
-  for (const signal of signals) {
+  for (const signal of diff.riskSignals) {
     lines.push(`- **${signal.level.toUpperCase()} — ${signal.title}** (${signal.kind})`);
     lines.push(`  - ${signal.detail}`);
     if (signal.paths.length > 0) {
+      if (mode === "pr" && signal.id === "oversized-architecture-change") {
+        const groups = groupLargeChangePaths(signal.paths, diff);
+        if (groups.length > 0) lines.push(`  - Groups: ${groups.map((group) => `${group.label}: ${group.count}`).join("; ")}`);
+      }
       const limit = mode === "full" ? signal.paths.length : PR_EXAMPLE_LIMIT;
       lines.push(`  - Paths: ${formatExamples(signal.paths, limit)}`);
     }
@@ -124,7 +128,7 @@ function renderRiskSignals(lines: string[], signals: RiskSignal[], mode: ReportM
 
 function renderTestsSection(lines: string[], diff: ArchitectureDiff, mode: ReportMode): void {
   sectionList(lines, "### Changed test files", diff.changedTestFiles);
-  sectionList(lines, "### Potential related existing tests", diff.potentialRelatedTests, { emptyText: "No related existing tests found by TypeScript/JavaScript path heuristics." });
+  renderPotentialRelatedTests(lines, diff, mode);
 
   const unsupported = changedUnsupportedLanguagePaths(diff);
   const byLanguage = unsupportedLanguageCounts(diff);
@@ -146,7 +150,7 @@ function renderTestsSection(lines: string[], diff: ArchitectureDiff, mode: Repor
 }
 
 function renderReviewRationale(lines: string[], diff: ArchitectureDiff, mode: ReportMode): void {
-  const rationale = buildReviewRationale(diff);
+  const rationale = diff.reviewRationale && diff.reviewRationale.length > 0 ? diff.reviewRationale : buildReviewRationale(diff);
   lines.push("### Review-order rationale", "");
   if (rationale.length === 0) {
     lines.push("- No central dependency rationale detected by the current deterministic rules.", "");
@@ -297,17 +301,113 @@ function changedUnsupportedLanguagePaths(diff: ArchitectureDiff): string[] {
     .sort();
 }
 
+function renderPotentialRelatedTests(lines: string[], diff: ArchitectureDiff, mode: ReportMode): void {
+  lines.push("### Potential related existing tests", "");
+  lines.push("- Potential related tests found by deterministic path/import heuristics; this is not proof of coverage.");
+  const groups = relatedTestGroups(diff);
+  const activeLabels = analyzerLanguageLabels(diff);
+  if (activeLabels.length === 0) {
+    lines.push("- None found by current analyzer heuristics.", "");
+    return;
+  }
+  for (const label of activeLabels) {
+    const paths = groups.find((group) => group.label === label)?.paths ?? [];
+    lines.push(`- ${label}:`);
+    if (paths.length === 0) {
+      lines.push("  - none found");
+    } else {
+      const limit = mode === "full" ? paths.length : PR_EXAMPLE_LIMIT;
+      for (const testPath of paths.slice(0, limit)) lines.push(`  - \`${testPath}\``);
+      if (mode === "pr" && paths.length > limit) lines.push(`  - ${paths.length - limit} more omitted from PR mode`);
+    }
+  }
+  lines.push("");
+}
+
+function relatedTestGroups(diff: ArchitectureDiff): Array<{ label: string; paths: string[] }> {
+  const groups = new Map<string, string[]>();
+  for (const testPath of diff.potentialRelatedTests) {
+    const label = languageLabelForPath(testPath);
+    const paths = groups.get(label) ?? [];
+    paths.push(testPath);
+    groups.set(label, paths);
+  }
+  return [...groups.entries()].map(([label, paths]) => ({ label, paths: paths.sort() })).sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function analyzerLanguageLabels(diff: ArchitectureDiff): string[] {
+  const labels = new Set<string>();
+  for (const analyzer of diff.analyzers) {
+    if (analyzer.languages.includes("python")) labels.add("Python");
+    if (analyzer.languages.includes("typescript") || analyzer.languages.includes("javascript")) labels.add("TypeScript/JavaScript");
+  }
+  return [...labels].sort((a, b) => {
+    const rank = (value: string) => value === "Python" ? 0 : value === "TypeScript/JavaScript" ? 1 : 2;
+    return rank(a) - rank(b) || a.localeCompare(b);
+  });
+}
+
+function groupLargeChangePaths(paths: string[], diff: ArchitectureDiff): Array<{ label: string; count: number }> {
+  const nodesByPath = new Map([...diff.addedNodes, ...diff.changedNodes, ...diff.removedNodes].map((node) => [node.path, node]));
+  const counts = new Map<string, number>();
+  for (const pathName of paths) {
+    const node = nodesByPath.get(pathName);
+    const label = largeChangeGroupLabel(pathName, node);
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+function largeChangeGroupLabel(pathName: string, node?: ArchitectureNode): string {
+  if (node?.kind === "config" || node?.kind === "workflow" || node?.riskTags.includes("operations-sensitive")) return "Config/package";
+  const firstSegment = pathName.split("/")[0] || ".";
+  const folder = pathName.includes("/") ? firstSegment : "root";
+  const language = languageLabelForNodeOrPath(node, pathName);
+  if (language === "Python") return `Python/${folder}`;
+  if (language === "TypeScript/JavaScript") return `TypeScript/${folder}`;
+  if (language === "Docs") return `Docs/${folder}`;
+  return `${language}/${folder}`;
+}
+
+function languageLabelForNodeOrPath(node: ArchitectureNode | undefined, pathName: string): string {
+  if (node?.language === "python" || pathName.endsWith(".py")) return "Python";
+  if (node?.language === "typescript" || node?.language === "javascript" || /\.[cm]?[jt]sx?$/.test(pathName)) return "TypeScript/JavaScript";
+  if (node?.kind === "docs" || /\.(md|mdx|rst)$/.test(pathName)) return "Docs";
+  return node?.language ? capitalize(node.language) : "Other";
+}
+
+function languageLabelForPath(pathName: string): string {
+  if (pathName.endsWith(".py")) return "Python";
+  if (/\.[cm]?[jt]sx?$/.test(pathName)) return "TypeScript/JavaScript";
+  return "Other";
+}
+
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 function buildReviewRationale(diff: ArchitectureDiff): string[] {
   const changedOrAdded = new Set([...diff.addedNodes, ...diff.changedNodes].map((node) => node.path));
+  const nodesByPath = new Map([...diff.addedNodes, ...diff.changedNodes, ...diff.removedNodes].map((node) => [node.path, node]));
   const importersByTarget = groupedTargets(diff.addedEdges.filter((edge) => changedOrAdded.has(edge.from)));
   const rationale: string[] = [];
+
+  for (const pathName of diff.reviewOrder) {
+    const node = nodesByPath.get(pathName);
+    if (!node || !(node.kind === "config" || node.kind === "workflow" || node.riskTags.includes("operations-sensitive"))) continue;
+    rationale.push(`\`${pathName}\` ranked early because it is operations/config-sensitive.`);
+  }
+
   for (const [target, importers] of [...importersByTarget.entries()].sort((a, b) => b[1].size - a[1].size || a[0].localeCompare(b[0]))) {
     if (importers.size < 2) continue;
+    const language = languageLabelForNodeOrPath(nodesByPath.get(target), target) === "Python" ? "Python module" : "it";
     const routeImporters = [...importers].filter((path) => /\/routes?\//.test(path));
-    const reason = routeImporters.length >= 2 ? `it is imported by ${routeImporters.length} changed route modules` : `it is imported by ${importers.size} changed modules`;
+    const reason = routeImporters.length >= 2 ? `${language} is imported by ${routeImporters.length} changed route modules` : `${language} is imported by ${importers.size} changed modules`;
     rationale.push(`\`${target}\` ranked early because ${reason}.`);
   }
-  return rationale;
+  return [...new Set(rationale)];
 }
 
 function groupedTargets(edges: ArchitectureDiff["addedEdges"]): Map<string, Set<string>> {
