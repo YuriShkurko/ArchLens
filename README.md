@@ -40,10 +40,16 @@ Compare two git refs:
 pnpm archlens diff --base main --head HEAD
 ```
 
-Render the Markdown report:
+Render the compact PR-ready Markdown report:
 
 ```bash
 pnpm archlens render
+```
+
+Render the full-detail Markdown report when you need complete node/edge lists and the full Mermaid diagram:
+
+```bash
+pnpm archlens render --mode full
 ```
 
 Outputs are written locally under `.archlens/`:
@@ -60,16 +66,16 @@ The Markdown report clearly separates:
 
 - analyzer scope and unsupported language areas;
 - concise architecture story derived from dependency facts;
-- detected structural facts;
-- inferred risk signals;
+- compact key detected facts by default, with full facts available through `--mode full`;
+- inferred risk signals split between supported-analyzer test gaps and unsupported-language scope limitations;
 - changed test files;
 - potential related existing tests;
 - unsupported related-test inference areas;
 - dependency-centrality-aware suggested review order;
 - author-provided context;
-- appendix limitations and caveats.
+- appendix limitations, caveats, and optional Mermaid details.
 
-ArchLens does not invent author intent and does not write generic PR summaries. It helps reviewers see structural impact, dependency changes, risk areas, related tests, and a deterministic review path.
+ArchLens does not invent author intent and does not write generic PR summaries. The default report is compact enough for PR review; full details remain available in `.archlens/architecture-diff.json` and `archlens render --mode full`.
 
 ## Git diff vs ArchLens
 

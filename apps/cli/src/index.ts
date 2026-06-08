@@ -7,7 +7,7 @@ const program = new Command();
 program
   .name("archlens")
   .description("See how every code change affects your architecture.")
-  .version("0.1.4");
+  .version("0.1.5");
 
 program
   .command("snapshot")
@@ -31,8 +31,10 @@ program
   .command("render")
   .description("Render .archlens/architecture-impact.md from architecture-diff.json")
   .option("--author-note <text>", "optional author-provided context to include in the report")
-  .action(async (opts: { authorNote?: string }) => {
-    const out = await writeReport(process.cwd(), opts.authorNote);
+  .option("--mode <mode>", "report detail mode: pr or full", "pr")
+  .action(async (opts: { authorNote?: string; mode: string }) => {
+    if (opts.mode !== "pr" && opts.mode !== "full") throw new Error("--mode must be 'pr' or 'full'");
+    const out = await writeReport(process.cwd(), opts.authorNote, opts.mode);
     console.log(`Wrote ${out}`);
   });
 

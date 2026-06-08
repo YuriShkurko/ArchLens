@@ -35,7 +35,7 @@ describe("diffArchitectureSnapshots", () => {
     expect(diff.changedNodes.map((node) => node.path)).toEqual(["src/a.ts"]);
     expect(diff.addedEdges).toHaveLength(1);
     expect(diff.reviewOrder.slice(0, 2)).toEqual(["lib/b.ts", "src/a.ts"]);
-    expect(diff.riskSignals.map((signal) => signal.id)).toContain("source-without-related-test-change");
+    expect(diff.riskSignals.map((signal) => signal.id)).toContain("supported-source-changed-without-tests");
     expect(diff.riskSignals.map((signal) => signal.id)).toContain("dependency-edges-added");
     expect(diff.riskSignals.map((signal) => signal.id)).toContain("new-cross-boundary-dependency");
   });
@@ -70,7 +70,7 @@ describe("diffArchitectureSnapshots", () => {
 
     const diff = diffArchitectureSnapshots(before, after);
     expect(diff.changedNodes.map((node) => node.path)).toEqual(["backend/app.py"]);
-    expect(diff.riskSignals).toContainEqual(expect.objectContaining({ id: "unsupported-language-touched", paths: ["backend/app.py"] }));
+    expect(diff.riskSignals).toContainEqual(expect.objectContaining({ id: "unsupported-source-changed-test-inference-unavailable", paths: ["backend/app.py"] }));
     expect(diff.potentialRelatedTests).toEqual([]);
   });
 

@@ -15,15 +15,29 @@ export function detectRiskSignals(input: RiskInput): RiskSignal[] {
   const touched = [...input.addedNodes, ...input.removedNodes, ...input.changedNodes];
   const testsChanged = touched.some((node) => node.kind === "test");
   const sourceChanged = touched.filter((node) => node.kind === "source");
+  const supportedLanguages = new Set(input.headSnapshot.analyzers.flatMap((analyzer) => analyzer.languages));
+  const supportedSourceChanged = sourceChanged.filter((node) => supportedLanguages.has(node.language));
+  const unsupportedSourceChanged = sourceChanged.filter((node) => !supportedLanguages.has(node.language) && isUnsupportedLanguagePath(node.path, node.language));
 
-  if (sourceChanged.length > 0 && !testsChanged) {
+  if (supportedSourceChanged.length > 0 && !testsChanged) {
     signals.push({
-      id: "source-without-related-test-change",
-      title: "Source changed without a changed test file",
+      id: "supported-source-changed-without-tests",
+      title: "Supported source changed without a changed test file",
       level: "warning",
       kind: "test-coverage-proxy",
-      paths: sourceChanged.map((node) => node.path),
-      detail: "Source files changed with no test files changed in the same diff. Verify the behavior directly or confirm that existing tests cover the touched modules before merge."
+      paths: supportedSourceChanged.map((node) => node.path),
+      detail: "Analyzed TypeScript/JavaScript source changed with no test files changed in the same diff. Verify the behavior directly or confirm that existing tests cover the touched modules before merge."
+    });
+  }
+
+  if (unsupportedSourceChanged.length > 0) {
+    signals.push({
+      id: "unsupported-source-changed-test-inference-unavailable",
+      title: "Unsupported source changed; related-test inference unavailable",
+      level: "info",
+      kind: "unsupported-language",
+      paths: unsupportedSourceChanged.map((node) => node.path),
+      detail: "Source files in languages without an active analyzer changed. Dependency analysis and related-test inference are unavailable for these files in this version; review their language-specific imports and tests manually."
     });
   }
 
@@ -59,18 +73,6 @@ export function detectRiskSignals(input: RiskInput): RiskSignal[] {
       kind: "dependency-graph",
       paths: input.addedEdges.flatMap((edge) => [edge.from, edge.to]),
       detail: "New imports can shift module boundaries or make shared dependencies more central. Review the importing files and any shared targets with multiple new importers.",
-    });
-  }
-
-  const unsupportedTouched = touched.filter((node) => isUnsupportedLanguagePath(node.path, node.language));
-  if (unsupportedTouched.length > 0) {
-    signals.push({
-      id: "unsupported-language-touched",
-      title: "Changed files include unsupported language areas",
-      level: "info",
-      kind: "unsupported-language",
-      paths: unsupportedTouched.map((node) => node.path),
-      detail: "ArchLens v0.1 extracts dependency and related-test signals for TypeScript/JavaScript only. Treat changed unsupported-language files as listed facts, then review their language-specific imports and tests manually.",
     });
   }
 

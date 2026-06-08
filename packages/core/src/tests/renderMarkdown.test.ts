@@ -29,8 +29,8 @@ describe("renderMarkdown", () => {
     };
     const md = renderMarkdown(diff, { authorNote: "Author says this is extraction work." });
     expect(md).toContain("## Architecture story");
-    expect(md).toContain("## Detected facts");
-    expect(md).toContain("## Inferred risk signals");
+    expect(md).toContain("## Key detected facts");
+    expect(md).toContain("## Key risks");
     expect(md).toContain("## Author-provided context");
     expect(md).toContain("## Appendix: limitations and caveats");
     expect(md).toContain("### Changed test files");
@@ -39,8 +39,9 @@ describe("renderMarkdown", () => {
     expect(md).toContain("### Unsupported related-test inference");
     expect(md).toContain("Unsupported language areas are listed as scope limitations, not as no-risk areas.");
     expect(md).toContain("ArchLens analyzed TypeScript/JavaScript architecture facts in this repository.");
-    expect(md).toContain("Python files changed, but Python dependency analysis is not supported in this version.");
+    expect(md).toContain("Unsupported Python files changed: 1. Python dependency analysis is not supported in this version.");
     expect(md).toContain("backend/app.py");
+    expect(md).toContain("## Appendix: Mermaid dependency diagram");
     expect(md).toContain("```mermaid");
     expect(md).toContain("Author says this is extraction work.");
   });

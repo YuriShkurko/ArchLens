@@ -13,6 +13,7 @@ Goals:
 - Keep TypeScript/JavaScript snapshot, diff, risk, test, review-order, and report behavior stable.
 - Continue external dogfood on real TypeScript/React changes.
 - Preserve deterministic report quality improvements proven in AIJobRadar dogfood.
+- Keep compact PR-ready report mode useful while preserving full details through JSON and `render --mode full`.
 - Keep analyzer capability metadata in snapshots so reports state what was actually analyzed.
 
 Near-term work:

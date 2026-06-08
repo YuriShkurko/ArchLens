@@ -3,7 +3,7 @@ import path from "node:path";
 import { diffArchitectureSnapshots } from "./architectureDiff.js";
 import { createArchitectureSnapshot } from "./architectureSnapshot.js";
 import { repoRoot, withRefExports } from "./git.js";
-import { renderMarkdown } from "./renderMarkdown.js";
+import { renderMarkdown, type ReportMode } from "./renderMarkdown.js";
 import { ArchitectureDiffSchema, ArchitectureSnapshotSchema, type ArchitectureDiff, type ArchitectureSnapshot } from "./schema.js";
 
 export * from "./schema.js";
@@ -36,11 +36,11 @@ export async function writeDiff(base = "main", head = "HEAD", cwd = process.cwd(
   return outPath;
 }
 
-export async function writeReport(cwd = process.cwd(), authorNote?: string): Promise<string> {
+export async function writeReport(cwd = process.cwd(), authorNote?: string, mode: ReportMode = "pr"): Promise<string> {
   const root = await repoRoot(cwd).catch(() => path.resolve(cwd));
   const diffPath = outputPath(root, "architecture-diff.json");
   const diff = readArchitectureDiff(diffPath);
-  const report = renderMarkdown(diff, { authorNote });
+  const report = renderMarkdown(diff, { authorNote, mode });
   const outPath = outputPath(root, "architecture-impact.md");
   ensureOutputDir(root);
   writeFileSync(outPath, report, "utf8");
